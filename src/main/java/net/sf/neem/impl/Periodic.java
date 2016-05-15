@@ -53,6 +53,11 @@ public abstract class Periodic implements Runnable {
 	private Runnable runnable;
 	private Random rand;
 
+	/**
+	 * Uses a random interval bounded between 1000ms (inclusive) and an interval (exclusive)
+	 *
+	 * @param interval the higher bound (in ms)
+	 */
 	public Periodic(Random rand, Transport trans, int interval) {
 		this.interval=interval;
 		this.trans=trans;
