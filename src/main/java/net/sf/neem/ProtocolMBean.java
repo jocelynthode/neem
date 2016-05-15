@@ -63,19 +63,7 @@ public interface ProtocolMBean {
 	 * @param fanout number of targets
 	 */
 	public void setGossipFanout(int fanout);
-	
-	/**
-	 * Get the maximum number of times that a message is relayed.
-	 * @return number of hops
-	 */
-	public int getTimeToLive();
 
-	/**
-	 * Set the maximum number of times that a message is relayed.
-	 * @param ttl number of hops
-	 */
-	public void setTimeToLive(int ttl);
-	
 	/**
 	 * Get the maximum number of cached message ids.
 	 * @return number of ids
@@ -88,46 +76,6 @@ public interface ProtocolMBean {
 	 * @param max number of ids
 	 */
 	public void setMaxIds(int max);
-    
-	/**
-	 * Get the maximum number of times that a message is pushed.
-	 * @return number of hops
-	 */
-	public int getPushTimeToLive();
-
-	/**
-	 * Set the maximum number of times that a message is pushed.
-	 * 0 disables pushing. A large value (at least, larger than
-	 * time-to-live) disables pulling.
-	 * @param pushttl number of hops
-	 */
-	public void setPushTimeToLive(int pushttl);
-
-	/**
-	 * Get the minimum size of messages that can be pulled.
-	 * @return size in bytes
-	 */
-	public int getMinPullSize();
-
-	/**
-	 * Set the minimum size of messages that can be pulled. Smaller
-	 * messages are always pushed. Setting it to a large value disables
-	 * pulling.
-	 * @param minPullSize size in bytes
-	 */
-	public void setMinPullSize(int minPullSize);
-
-	/**
-	 * Get period for retrying to pull known messages.
-	 * @return period in milliseconds
-	 */
-	public int getPullPeriod();
-
-	/**
-	 * Set period for retrying to pull known messages.
-	 * @param pullPeriod period in milliseconds
-	 */
-	public void setPullPeriod(int pullPeriod);
 
 	/**
 	 * Get number of messages delivered to the application.

@@ -75,38 +75,6 @@ public class Protocol implements ProtocolMBean {
     public void setMaxIds(int max) {
         gossip.setMaxIds(max);
     }
-    
-	public int getMinPullSize() {
-		return gossip.getMinPullSize();
-	}
-
-	public void setMinPullSize(int minPullSize) {
-		gossip.setMinPullSize(minPullSize);
-	}
-
-	public int getPullPeriod() {
-		return gossip.getPullPeriod();
-	}
-
-	public void setPullPeriod(int pullPeriod) {
-		gossip.setPullPeriod(pullPeriod);
-	}
-
-	public int getPushTimeToLive() {
-		return gossip.getPushttl();
-	}
-
-	public void setPushTimeToLive(int pushttl) {
-		gossip.setPushttl(pushttl);
-	}
-
-	public int getTimeToLive() {
-		return gossip.getTtl();
-	}
-
-	public void setTimeToLive(int ttl) {
-		gossip.setTtl(ttl);
-	}
 
     public int getDelivered() {
     	return gossip.deliv;
