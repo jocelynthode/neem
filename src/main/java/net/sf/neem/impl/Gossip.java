@@ -70,10 +70,7 @@ public class Gossip implements DataListener {
     }
         
     public void multicast(ByteBuffer[] msg) {
-        ByteBuffer[] copy = Buffers.clone(msg);
-        short port=dataport;
-
-        relay(copy, this.fanout, port, memb.connections());
+        relay(msg, this.fanout, dataport, memb.connections());
     }
 
     private void relay(ByteBuffer[] msg, int fanout, short syncport, Connection[] conns) {
