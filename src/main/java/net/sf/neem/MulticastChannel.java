@@ -51,6 +51,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.InterruptibleChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.UUID;

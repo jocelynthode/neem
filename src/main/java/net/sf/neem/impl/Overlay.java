@@ -40,11 +40,10 @@
 
 package net.sf.neem.impl;
 
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Implementation of overlay management. This class combines a
@@ -61,14 +60,13 @@ public class Overlay implements ConnectionListener, DataListener {
         this.idport = idport;
         this.shuffleport = shuffleport;
         this.joinport = joinport;
- 
+
         /*
-         * Default configuration suitable for ~500 nodes, 99%
-         * probability of connectivity, 10% node failure. Use
-         * apps.jmx.MkConfig to compute values for other
-         * configurations.
+         * Default Fanout
          */
         this.fanout = 15;
+        this.exch = 7;
+        this.s = 7;
 
         this.myId = myId;
         this.peers = new HashMap<UUID, Connection>();
@@ -78,21 +76,24 @@ public class Overlay implements ConnectionListener, DataListener {
         	}
         };
 
+
+
         net.setDataListener(this, this.shuffleport);
         net.setDataListener(this, this.idport);
-        net.setDataListener(this, this.joinport);
         net.setConnectionListener(this);
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
+        info.age = 0;
+
     	if (port==this.idport)
     		handleId(msg, info);
     	else if (port==this.shuffleport)
-    		handleShuffle(msg);
+    		handleShuffle(msg, info);
     	else
     		handleJoin(msg);
     }
-    
+
     private void handleId(ByteBuffer[] msg, Connection info) {
 		if (peers.isEmpty()) {
 			info.send(new ByteBuffer[] {
@@ -109,18 +110,35 @@ public class Overlay implements ConnectionListener, DataListener {
 			info.handleClose();
 			return;
 		}
-		
+
 		synchronized (this) {
 			info.id = id;
 			info.listen = addr;
 			peers.put(id, info);
-		}		
+		}
     }
 
-    private void handleShuffle(ByteBuffer[] msg) {
-    	shuffleIn++;
-    	ByteBuffer[] beacon = Buffers.clone(msg);
 
+    private void handleShuffle(ByteBuffer[] msg, Connection info) {
+    	shuffleIn++;
+        ArrayList<Connection> receivedView = new ArrayList<>();
+        //add sender here
+        receivedView.add(info);
+        //TODO refactor reading from ByteBuffer[]
+        for (ByteBuffer byteBuffer : msg) {
+            byte[] content = byteBuffer.array();
+            ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
+
+            try {
+                ObjectInputStream objectIn = new ObjectInputStream(byteIn);
+                receivedView.addAll((ArrayList<Connection>) objectIn.readObject());
+                selectToKeep(receivedView);
+
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+        /*
 		UUID id = UUIDs.readUUIDFromBuffer(msg);
 		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
 
@@ -136,6 +154,81 @@ public class Overlay implements ConnectionListener, DataListener {
 			int idx = rand.nextInt(conns.length);
 			conns[idx].send(Buffers.clone(beacon), this.shuffleport);
 		}
+		*/
+    }
+
+    private ArrayList<Connection> selectToSend() {
+        ArrayList<Connection> toSend = new ArrayList<>();
+        ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
+
+        Collections.shuffle(tmpView);
+        //Move oldest H items to the end (from view)
+        tmpView.sort((o1, o2) -> o1.age - o2.age);
+
+        //Append the  exch-1 element from view to toSend
+        for (int i = 0; i < exch-1; i++) {
+            toSend.add(tmpView.get(i));
+        }
+        return toSend;
+    }
+
+    //TODO is C really equals to fanout ?
+    private synchronized void selectToKeep(ArrayList<Connection> receivedView) {
+        //merge view and received in an arrayList
+        //remove duplicates from view
+        ArrayList<Connection> toRemove = new ArrayList<>();
+        for (Connection conn : receivedView) {
+            boolean isDuplicate = removeDuplicate(conn);
+            if (isDuplicate) {
+                toRemove.add(conn);
+            }
+        }
+        receivedView.removeAll(toRemove);
+
+        ArrayList<Connection> newView = new ArrayList<>(peers.values());
+        newView.addAll(receivedView);
+        //remove min(H, #view-c) oldest items
+        int minimum = (Math.min(h, (newView.size() - fanout)));
+        while (minimum > 0) {
+            Connection oldestConnection = Collections.max(newView, (o1, o2) -> o1.age - o2.age);
+            newView.remove(oldestConnection);
+            if (peers.containsKey(oldestConnection.id)) {
+                purgeConnection(oldestConnection);
+            } else {
+                receivedView.remove(oldestConnection);
+            }
+            minimum--;
+        }
+
+        //remove the min(S, #view -c) head items from view
+        minimum = Math.min(s, (newView.size() - fanout));
+        while (minimum > 0) {
+            Connection removed = newView.remove(0);
+            if (peers.containsKey(removed.id)) {
+                purgeConnection(removed);
+            } else {
+                receivedView.remove(removed);
+            }
+            minimum--;
+        }
+
+        //add new connections
+        for (Connection conn : receivedView) {
+            net.add(conn.listen);
+        }
+
+        //trim size
+        purgeConnections();
+    }
+
+    private boolean removeDuplicate(Connection info) {
+        if(peers.containsKey(info.id) && peers.get(info.id).age <= info.age) return true;
+        else if (peers.containsKey(info.id)) {
+            peers.get(info.id).age = info.age;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private void handleJoin(ByteBuffer[] msg) {
@@ -148,7 +241,7 @@ public class Overlay implements ConnectionListener, DataListener {
     		conns[i].send(Buffers.clone(beacon), this.shuffleport);
 		}
     }
-    
+
     public void open(Connection info) {
     	info.send(new ByteBuffer[] { UUIDs.writeUUIDToBuffer(this.myId),
             Addresses.writeAddressToBuffer(netid) }, this.idport);
@@ -177,17 +270,29 @@ public class Overlay implements ConnectionListener, DataListener {
         }
     }
 
+    private void purgeConnection(Connection info) {
+        peers.remove(info.id);
+        info.handleClose();
+        info.id = null;
+        purged++;
+    }
+
     /**
-     * Tell a neighbor, that there is a connection do the peer
-     * identified by its address, wich is sent to the
-     * peers.
+     * Shuffle a part of view to an other peer
      */
-    private void shuffle() {
-    	if (peers.isEmpty()) {
-    		shuffle.stop();
-    		return;
-    	}
-    	
+    private synchronized void shuffle() {
+        //selectPartner from view
+        Connection partner = connections()[rand.nextInt(connections().length)];
+        //selectTosend
+        ArrayList<Connection> toSend = selectToSend();
+        //send to Partner
+        this.sendPeers(partner, toSend);
+        // increase all ages in the view
+        for (Connection connection : peers.values()) {
+            connection.age++;
+        }
+
+        /*
         Connection[] conns = connections();
         if (conns.length<2)
         	return;
@@ -198,20 +303,26 @@ public class Overlay implements ConnectionListener, DataListener {
 			return;
 
 		this.tradePeers(toReceive, toSend);
+		*/
     }
-    
+
     /**
-     * Connect two other peers by informing one of the other.
+     * Send fresh connection to a target peer
      * 
      * @param target The connection peer.
-     * @param arrow The accepting peer.
+     * @param toSend the array of peers
      */
-    public void tradePeers(Connection target, Connection arrow) {
+    public void sendPeers(Connection target, ArrayList<Connection> toSend) {
     	shuffleOut++;
-        target.send(new ByteBuffer[] {
-                UUIDs.writeUUIDToBuffer(arrow.id),
-                Addresses.writeAddressToBuffer(arrow.listen) },
-                this.shuffleport);
+        ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+        try {
+            ObjectOutputStream out = new ObjectOutputStream(byteOut);
+            out.writeObject(toSend);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        ByteBuffer bb = ByteBuffer.wrap(byteOut.toByteArray());
+        target.send(new ByteBuffer[] {bb}, this.shuffleport);
     }
 
     /**
@@ -273,6 +384,10 @@ public class Overlay implements ConnectionListener, DataListener {
     // Configuration parameters
     
     private int fanout;
+    private final int h = 0;
+    private int s;
+    private int exch;
+
     
     public int getFanout() {
         return fanout;
@@ -280,6 +395,8 @@ public class Overlay implements ConnectionListener, DataListener {
 
     public void setFanout(int fanout) {
         this.fanout = fanout;
+        this.exch = fanout / 2;
+        this.s = fanout / 2;
     }
 
     public int getShufflePeriod() {

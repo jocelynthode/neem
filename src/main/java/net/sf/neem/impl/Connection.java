@@ -363,5 +363,11 @@ public class Connection extends Handler {
      * this peer can be contacted.
      */
     public InetSocketAddress listen;
+
+    /**
+     * Used by the overlay management to keep an up to date view for
+     * the PSS
+     */
+    public int age = 0;
 }
 
