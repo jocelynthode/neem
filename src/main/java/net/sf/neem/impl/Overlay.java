@@ -132,12 +132,11 @@ public class Overlay implements ConnectionListener, DataListener {
             try {
                 ObjectInputStream objectIn = new ObjectInputStream(byteIn);
                 receivedView.addAll((ArrayList<Connection>) objectIn.readObject());
-                selectToKeep(receivedView);
-
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
         }
+        selectToKeep(receivedView);
         /*
 		UUID id = UUIDs.readUUIDFromBuffer(msg);
 		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
@@ -162,8 +161,11 @@ public class Overlay implements ConnectionListener, DataListener {
         ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
 
         Collections.shuffle(tmpView);
-        //Move oldest H items to the end (from view)
-        tmpView.sort((o1, o2) -> o1.age - o2.age);
+        //Move oldest H items to the end (from view) H = 0 for the moment
+        for (int i = 0; i < h; i++) {
+            Connection oldest =  Collections.max(tmpView.subList(0,tmpView.size()-i), (o1, o2) -> o1.age - o2.age);
+            Collections.swap(tmpView, tmpView.indexOf(oldest), tmpView.size() - (i+1));
+        }
 
         //Append the  exch-1 element from view to toSend
         for (int i = 0; i < exch-1; i++) {
@@ -174,17 +176,14 @@ public class Overlay implements ConnectionListener, DataListener {
 
     //TODO is C really equals to fanout ?
     private synchronized void selectToKeep(ArrayList<Connection> receivedView) {
-        //merge view and received in an arrayList
         //remove duplicates from view
         ArrayList<Connection> toRemove = new ArrayList<>();
         for (Connection conn : receivedView) {
             boolean isDuplicate = removeDuplicate(conn);
-            if (isDuplicate) {
-                toRemove.add(conn);
-            }
+            if (isDuplicate) toRemove.add(conn);
         }
         receivedView.removeAll(toRemove);
-
+        //merge view and received in an arrayList
         ArrayList<Connection> newView = new ArrayList<>(peers.values());
         newView.addAll(receivedView);
         //remove min(H, #view-c) oldest items
@@ -281,6 +280,8 @@ public class Overlay implements ConnectionListener, DataListener {
      * Shuffle a part of view to an other peer
      */
     private synchronized void shuffle() {
+        //don't shuffle if not enough in the view
+        if (connections().length < fanout) return;
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
         //selectTosend
