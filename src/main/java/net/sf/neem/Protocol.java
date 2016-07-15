@@ -40,26 +40,31 @@
 
 package net.sf.neem;
 
-import java.net.InetSocketAddress;
-import java.util.UUID;
-
 import net.sf.neem.impl.Gossip;
 import net.sf.neem.impl.Overlay;
 import net.sf.neem.impl.Transport;
+
+import java.net.InetSocketAddress;
+import java.util.UUID;
 
 /**
  * Implementation of the NeEM management bean.
  */
 public class Protocol implements ProtocolMBean {
-	Protocol(MulticastChannel neem) {
-		this.neem = neem;
-        this.net = neem.net;
-		this.gossip = neem.gossip;
-		this.overlay = neem.overlay;
-	}
+    private MulticastChannel neem;
 
-	// Gossip
-	
+    // Gossip
+    private Transport net;
+    private Gossip gossip;
+    private Overlay overlay;
+
+    Protocol(MulticastChannel neem) {
+        this.neem = neem;
+        this.net = neem.net;
+        this.gossip = neem.gossip;
+        this.overlay = neem.overlay;
+    }
+
     public int getGossipFanout() {
         return gossip.getFanout();
     }
@@ -77,59 +82,59 @@ public class Protocol implements ProtocolMBean {
     }
 
     public int getDelivered() {
-    	return gossip.deliv;
+        return gossip.deliv;
     }
-    
+
     public int getMulticast() {
-    	return gossip.mcast;
+        return gossip.mcast;
     }
-    
+
     public int getDataReceived() {
-    	return gossip.dataIn;
+        return gossip.dataIn;
     }
-    
+
     public int getDataSent() {
-    	return gossip.dataOut;
-    }
-    
-    public int getHintsReceived() {
-    	return gossip.ackIn;
-    }
-    
-    public int getHintsSent() {
-    	return gossip.ackOut;
-    }
-    
-    public int getPullReceived() {
-    	return gossip.nackIn;
-    }
-    
-    public int getPullSent() {
-    	return gossip.nackOut;
+        return gossip.dataOut;
     }
 
     // --- Overlay
 
+    public int getHintsReceived() {
+        return gossip.ackIn;
+    }
+
+    public int getHintsSent() {
+        return gossip.ackOut;
+    }
+
+    public int getPullReceived() {
+        return gossip.nackIn;
+    }
+
+    public int getPullSent() {
+        return gossip.nackOut;
+    }
+
     public UUID getLocalId() {
-		return overlay.getId();
-	}
-    
+        return overlay.getId();
+    }
+
     public UUID[] getPeerIds() {
-		return overlay.getPeers();
-	}
-	
-	public InetSocketAddress getPublicAddress() {
-		return overlay.getLocalSocketAddress();
-	}
-	
-	public int getOverlayFanout() {
+        return overlay.getPeers();
+    }
+
+    public InetSocketAddress getPublicAddress() {
+        return overlay.getLocalSocketAddress();
+    }
+
+    public int getOverlayFanout() {
         return overlay.getFanout();
     }
 
     public void setOverlayFanout(int fanout) {
         overlay.setFanout(fanout);
     }
-    
+
     public int getShufflePeriod() {
         return overlay.getShufflePeriod();
     }
@@ -138,36 +143,36 @@ public class Protocol implements ProtocolMBean {
         overlay.setShufflePeriod(period);
     }
 
-    public int getJoinRequests() {
-    	return overlay.joins;
-    }
-	
-	public int getPurgedConnections() {
-		return overlay.purged;
-	}
-	
-	public int getShufflesReceived() {
-		return overlay.shuffleIn;
-	}
-	
-	public int getShufflesSent() {
-		return overlay.shuffleOut;
-	}
+    // -- Transport
 
-	// -- Transport
-	
-	public InetSocketAddress getLocalAddress() {
-		return net.getLocalSocketAddress();
-	}
-	
+    public int getJoinRequests() {
+        return overlay.joins;
+    }
+
+    public int getPurgedConnections() {
+        return overlay.purged;
+    }
+
+    public int getShufflesReceived() {
+        return overlay.shuffleIn;
+    }
+
+    public int getShufflesSent() {
+        return overlay.shuffleOut;
+    }
+
+    public InetSocketAddress getLocalAddress() {
+        return net.getLocalSocketAddress();
+    }
+
     public InetSocketAddress[] getPeerAddresses() {
         return overlay.getPeerAddresses();
-    } 
+    }
 
     public synchronized void addPeer(String addr, int port) {
-        neem.connect(new InetSocketAddress(addr,port));
+        neem.connect(new InetSocketAddress(addr, port));
     }
-	
+
     public int getQueueSize() {
         return net.getQueueSize();
     }
@@ -175,51 +180,46 @@ public class Protocol implements ProtocolMBean {
     public void setQueueSize(int size) {
         net.setQueueSize(size);
     }
-	
-	public int getBufferSize() {
-		return net.getBufferSize();
-	}
-	
-	public void setBufferSize(int size) {
-		net.setBufferSize(size);
-	}
-	
+
+    public int getBufferSize() {
+        return net.getBufferSize();
+    }
+
+    public void setBufferSize(int size) {
+        net.setBufferSize(size);
+    }
+
     public int getAcceptedSocks() {
-    	return net.accepted;
+        return net.accepted;
     }
 
     public int getConnectedSocks() {
-    	return net.connected;
+        return net.connected;
     }
-    
-    public int getPacketsReceived() {
-    	return net.pktIn;
-    }
-    
-    public int getPacketsSent() {
-    	return net.pktOut;
-    }
-    
-    public int getBytesReceived() {
-    	return net.bytesIn;
-    }
-    
-    public int getBytesSent() {
-    	return net.bytesOut;
-    }
-    
+
     // --- Global
-    
-    public void resetCounters() {
-		net.resetCounters();
-		overlay.resetCounters();
-		gossip.resetCounters();
+
+    public int getPacketsReceived() {
+        return net.pktIn;
     }
-    
-    private MulticastChannel neem;
-	private Transport net;
-	private Gossip gossip;
-	private Overlay overlay;
+
+    public int getPacketsSent() {
+        return net.pktOut;
+    }
+
+    public int getBytesReceived() {
+        return net.bytesIn;
+    }
+
+    public int getBytesSent() {
+        return net.bytesOut;
+    }
+
+    public void resetCounters() {
+        net.resetCounters();
+        overlay.resetCounters();
+        gossip.resetCounters();
+    }
 
 };
 

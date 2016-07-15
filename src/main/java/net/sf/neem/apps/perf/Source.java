@@ -40,57 +40,54 @@
 
 package net.sf.neem.apps.perf;
 
-import java.lang.management.ManagementFactory;
-import java.nio.ByteBuffer;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
+import net.sf.neem.MulticastChannel;
+import net.sf.neem.ProtocolMBean;
+import net.sf.neem.apps.Addresses;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.sf.neem.apps.Addresses;
-
-import net.sf.neem.MulticastChannel;
-import net.sf.neem.ProtocolMBean;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
 
 public class Source {
-	private static Logger logger = LoggerFactory.getLogger(Source.class); 
-	
+    private static Logger logger = LoggerFactory.getLogger(Source.class);
+
     public static void main(String[] args) {
         if (args.length < 3) {
             System.err.println("Usage: net.sf.neem.apps.perf.Source local iarrival size peer1 ... peerN");
             System.exit(1);
         }
-        
+
         try {
             MulticastChannel neem = new MulticastChannel(Addresses.parse(args[0], true));
             Thread.sleep(1000);
             for (int i = 3; i < args.length; i++)
                 neem.connect(Addresses.parse(args[i], false));
 
-            int iarrival=Integer.parseInt(args[1]);
-            int size=Integer.parseInt(args[2]);
-            
+            int iarrival = Integer.parseInt(args[1]);
+            int size = Integer.parseInt(args[2]);
+
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             ProtocolMBean mbean = neem.getProtocolMBean();
-            ObjectName name = new ObjectName("net.sf.neem:type=Protocol,id="+mbean.getLocalId());
+            ObjectName name = new ObjectName("net.sf.neem:type=Protocol,id=" + mbean.getLocalId());
             mbs.registerMBean(mbean, name);
 
-            int seq=0;
-            
-            String id=mbean.getLocalId().toString();
+            int seq = 0;
+
+            String id = mbean.getLocalId().toString();
             ByteBuffer bb = ByteBuffer.allocate(size);
-            byte[] buf="junk".getBytes();
-            while(bb.remaining()>buf.length)
-            	bb.put(buf);
-            bb.put(buf,0,bb.remaining());
+            byte[] buf = "junk".getBytes();
+            while (bb.remaining() > buf.length)
+                bb.put(buf);
+            bb.put(buf, 0, bb.remaining());
             bb.rewind();
-            
+
             Thread.sleep(1000);
-            
+
             while (true) {
-            	String msg=id+" "+(seq++)+" "+(System.nanoTime()/1000)+" ";
+                String msg = id + " " + (seq++) + " " + (System.nanoTime() / 1000) + " ";
                 buf = msg.getBytes();
                 bb.put(buf);
                 bb.rewind();
@@ -100,7 +97,7 @@ public class Source {
                 Thread.sleep(iarrival);
             }
         } catch (Exception e) {
-        	logger.error("exception caught", e);
+            logger.error("exception caught", e);
         }
     }
 }

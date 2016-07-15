@@ -47,37 +47,38 @@ import java.net.UnknownHostException;
  * Utility class to parse addresses.
  */
 public final class Addresses {
-	private Addresses() {}
+    private Addresses() {
+    }
 
-	/**
-	 * Parses address strings. Accepts things as "localhost:12345", "127.0.0.1:12345", 
-	 * ":12345" or "12345". The later result in INADDR_ANY or 127.0.0.1 being used for
-	 * the address, depending on the second parameter. 
-	 * 
-	 * @param arg a textual representation of the address
-	 * @param isany sets defaults to INADDR_ANY:0
-	 * @return the address
-	 * @throws UnknownHostException unable to parse the address
-	 */
-	public static InetSocketAddress parse(String arg, boolean isany) throws UnknownHostException {
-		try {
-			if (arg.equals(":") && isany)
-				return new InetSocketAddress(0);
-			String[] parms = arg.split(":");
-			if (parms.length==2) {
-				int port=0;
-				if (parms[1].length()>0)
-					port=Integer.parseInt(parms[1]);
-				if (port!=0 || isany)
-					if (parms[0].length()>0)
-						return new InetSocketAddress(parms[0], port);
-					else
-						return new InetSocketAddress(port);
-			} else if (parms.length==1)
-				return new InetSocketAddress(Integer.parseInt(parms[0]));
-		} catch(Exception e) {
-			// fall through...
-		}
+    /**
+     * Parses address strings. Accepts things as "localhost:12345", "127.0.0.1:12345",
+     * ":12345" or "12345". The later result in INADDR_ANY or 127.0.0.1 being used for
+     * the address, depending on the second parameter.
+     *
+     * @param arg   a textual representation of the address
+     * @param isany sets defaults to INADDR_ANY:0
+     * @return the address
+     * @throws UnknownHostException unable to parse the address
+     */
+    public static InetSocketAddress parse(String arg, boolean isany) throws UnknownHostException {
+        try {
+            if (arg.equals(":") && isany)
+                return new InetSocketAddress(0);
+            String[] parms = arg.split(":");
+            if (parms.length == 2) {
+                int port = 0;
+                if (parms[1].length() > 0)
+                    port = Integer.parseInt(parms[1]);
+                if (port != 0 || isany)
+                    if (parms[0].length() > 0)
+                        return new InetSocketAddress(parms[0], port);
+                    else
+                        return new InetSocketAddress(port);
+            } else if (parms.length == 1)
+                return new InetSocketAddress(Integer.parseInt(parms[0]));
+        } catch (Exception e) {
+            // fall through...
+        }
         throw new UnknownHostException(arg);
-	}
+    }
 }

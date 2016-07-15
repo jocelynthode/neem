@@ -55,34 +55,64 @@ import java.util.UUID;
  * for a connection. It also implements multiplexing and queuing.
  */
 public class Connection extends Handler {
-	/**
-	 * Create a new connection.
-	 * 
-	 * @param net transport object
-	 * @param bind local address to bind to, if any
-	 * @param remote target address
-	 * @throws IOException 
-	 */
-	Connection(Transport trans, InetSocketAddress bind, InetSocketAddress remote) throws IOException {
-    	super(trans);
-		sock = SocketChannel.open();
-		sock.configureBlocking(false);
-		if (bind != null) {
-			sock.socket().bind(bind);
-		}
+    /**
+     * Message queue
+     */
+    public Queue queue;
+    /**
+     * Used by overlay management to assign an unique id to the
+     * remote process.
+     */
+    public UUID id;
+    /**
+     * Used by overlay management to keep the socket where
+     * this peer can be contacted.
+     */
+    public InetSocketAddress listen;
+
+    // --- Event handlers
+    /**
+     * Used by the overlay management to keep an up to date view for
+     * the PSS
+     */
+    public int age = 0;
+    protected SocketChannel sock;
+    private ByteBuffer incoming, copy;
+    private ArrayList<ByteBuffer> incomingmb;
+    private int msgsize;
+    private ByteBuffer[] outgoing;
+    private int outremaining;
+    private short port;
+    private boolean dirty, connected;
+
+    /**
+     * Create a new connection.
+     *
+     * @param net    transport object
+     * @param bind   local address to bind to, if any
+     * @param remote target address
+     * @throws IOException
+     */
+    Connection(Transport trans, InetSocketAddress bind, InetSocketAddress remote) throws IOException {
+        super(trans);
+        sock = SocketChannel.open();
+        sock.configureBlocking(false);
+        if (bind != null) {
+            sock.socket().bind(bind);
+        }
         sock.connect(remote);
 
         key = sock.register(transport.selector, SelectionKey.OP_CONNECT);
-		key.attach(this);
-		queue = new Queue(transport.getQueueSize(), transport.rand);
-		
-		logger.info("opening connection to {}", remote);
-	}
-    
+        key.attach(this);
+        queue = new Queue(transport.getQueueSize(), transport.rand);
+
+        logger.info("opening connection to {}", remote);
+    }
     /**
-     * Create a new connection from an existing socket (used to associate a Connection to 
+     * Create a new connection from an existing socket (used to associate a Connection to
      * an incoming connection request).
-     * @param net Transport layer instance that received the connect request
+     *
+     * @param net  Transport layer instance that received the connect request
      * @param sock The accepting socket.
      * @throws IOException If an I/O operation did not succeed.
      */
@@ -92,40 +122,39 @@ public class Connection extends Handler {
         sock.configureBlocking(false);
         sock.socket().setSendBufferSize(transport.getBufferSize());
         sock.socket().setReceiveBufferSize(transport.getBufferSize());
-        
+
         key = sock.register(transport.selector,
-                SelectionKey.OP_READ | SelectionKey.OP_WRITE); 
+                SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         key.attach(this);
         queue = new Queue(transport.getQueueSize(), transport.rand);
-        connected=true;
+        connected = true;
 
         logger.info("accepted connection from {}", getPeer());
     }
-    	
+
     /**
      * Send message to peers
-     * @param msg The message to be sent.
+     *
+     * @param msg  The message to be sent.
      * @param port Port, at transport layer, where the message must be delivered.
      */
     public void send(ByteBuffer[] msg, short port) {
-    	if (key==null)
+        if (key == null)
             return;
-    	
+
         Queued b = new Queued(msg, port);
         queue.push(b);
         handleWrite();
     }
 
-    // --- Event handlers
-    
-	void handleGC() {
-		if (!dirty && outgoing == null) {
-		    handleClose();
-		} else {
-		    dirty = false;
-		}
-	}
-    
+    void handleGC() {
+        if (!dirty && outgoing == null) {
+            handleClose();
+        } else {
+            dirty = false;
+        }
+    }
+
     /**
      * Write event handler.
      * There's something waiting to be written.
@@ -139,7 +168,7 @@ public class Connection extends Handler {
         try {
             if (outgoing == null) {
                 Queued b = (Queued) queue.pop();
-                
+
                 ByteBuffer[] msg = b.getMsg();
 
                 if (msg == null) {
@@ -162,26 +191,26 @@ public class Connection extends Handler {
                 System.arraycopy(msg, 0, outgoing, 1, msg.length);
                 outremaining = size + 6;
             }
-            
+
             if (outgoing != null) {
                 long n = sock.write(outgoing, 0, outgoing.length);
-                dirty=true;
-                transport.bytesOut+=n;
+                dirty = true;
+                transport.bytesOut += n;
 
                 outremaining -= n;
                 if (outremaining == 0) {
-                	transport.pktOut++;
+                    transport.pktOut++;
                     outgoing = null;
                 }
                 key.interestOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-            }            
+            }
         } catch (IOException e) {
             handleClose();
         } catch (CancelledKeyException cke) {
-        	// Make sure connection is closed
+            // Make sure connection is closed
             transport.notifyClose(this);
         }
-        
+
     }
 
     void handleRead() {
@@ -190,18 +219,18 @@ public class Connection extends Handler {
             incoming = ByteBuffer.allocate(transport.getBufferSize());
             copy = incoming.asReadOnlyBuffer();
         }
-        // Read as much as we can with a single buffer.            
+        // Read as much as we can with a single buffer.
         try {
             long read = 0;
 
             while ((read = sock.read(incoming)) > 0) {
-            	transport.bytesIn+=read;
+                transport.bytesIn += read;
             }
             if (read < 0) {
                 handleClose();
                 return;
             }
-            dirty=true;
+            dirty = true;
             copy.limit(incoming.position());
         } catch (IOException e) {
             handleClose();
@@ -247,7 +276,7 @@ public class Connection extends Handler {
 
             // Is the message complete?
             if (msgsize == 0) {
-            	transport.pktIn++;
+                transport.pktIn++;
                 final ByteBuffer[] msg = (ByteBuffer[]) incomingmb.toArray(
                         new ByteBuffer[incomingmb.size()]);
                 transport.deliver(this, prt, msg);
@@ -268,7 +297,7 @@ public class Connection extends Handler {
             copy = incoming.asReadOnlyBuffer();
             copy.flip();
         }
-        
+
     }
 
     /**
@@ -283,23 +312,23 @@ public class Connection extends Handler {
      * When the handler behaves as client.
      */
     void handleConnect() {
-        try {	
+        try {
             if (sock.finishConnect()) {
-            	transport.connected++;
-            	
-            	connected=true;
+                transport.connected++;
+
+                connected = true;
                 sock.socket().setReceiveBufferSize(transport.getBufferSize());
                 sock.socket().setSendBufferSize(transport.getBufferSize());
 
                 transport.notifyOpen(this);
                 key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
 
-        		logger.info("connected to {}", getPeer());
+                logger.info("connected to {}", getPeer());
             }
         } catch (IOException e) {
-        	logger.warn("connect failed", e);
+            logger.warn("connect failed", e);
             handleClose();
-        } 
+        }
     }
 
     /**
@@ -307,67 +336,32 @@ public class Connection extends Handler {
      * Either by overlay management or death of peer.
      */
     void handleClose() {
-    	if (key!=null) {
-    		logger.info("closed connection with {}", getPeer());
+        if (key != null) {
+            logger.info("closed connection with {}", getPeer());
 
-    		try {
-    			connected=false;
-				key.channel().close();
-				key.cancel();
-				sock.close();
-			} catch (IOException e) {
-				// Don't care, we're cleaning up anyway...
-		       	logger.warn("cleanup failed", e);
-		    }
-			key = null;
-			sock = null;
-			transport.notifyClose(this);
-    	}
+            try {
+                connected = false;
+                key.channel().close();
+                key.cancel();
+                sock.close();
+            } catch (IOException e) {
+                // Don't care, we're cleaning up anyway...
+                logger.warn("cleanup failed", e);
+            }
+            key = null;
+            sock = null;
+            transport.notifyClose(this);
+        }
     }
 
-	public InetSocketAddress getPeer() {
-		if (connected)
-			return (InetSocketAddress) sock.socket().getRemoteSocketAddress();
-		return null;
-	}
+    public InetSocketAddress getPeer() {
+        if (connected)
+            return (InetSocketAddress) sock.socket().getRemoteSocketAddress();
+        return null;
+    }
 
     public InetAddress getRemoteAddress() {
         return ((InetSocketAddress) this.sock.socket().getRemoteSocketAddress()).getAddress();
     }
-    
-    protected SocketChannel sock;
-
-    private ByteBuffer incoming, copy;
-    private ArrayList<ByteBuffer> incomingmb;
-    private int msgsize;
-
-    private ByteBuffer[] outgoing;
-    private int outremaining;
-    private short port;
- 
-    private boolean dirty, connected;
-
-    /**
-     * Message queue
-     */
-    public Queue queue;
-
-    /**
-     * Used by overlay management to assign an unique id to the
-     * remote process.
-     */
-    public UUID id;
-    
-    /**
-     * Used by overlay management to keep the socket where
-     * this peer can be contacted.
-     */
-    public InetSocketAddress listen;
-
-    /**
-     * Used by the overlay management to keep an up to date view for
-     * the PSS
-     */
-    public int age = 0;
 }
 

@@ -47,10 +47,12 @@ import java.util.UUID;
  * UUID manipulation utilities.
  */
 public abstract class UUIDs {
-	private UUIDs() {}
-	
-	/**
-	 * Write an UUID to a ByteBuffer.
+    private UUIDs() {
+    }
+
+    /**
+     * Write an UUID to a ByteBuffer.
+     *
      * @param uuid The uuid to be written.
      * @return The Buffer with the uuid written into.
      */
@@ -61,13 +63,15 @@ public abstract class UUIDs {
         uuid_bytes.flip();
         return uuid_bytes;
     }
-    
-    /** Read an UUID from an array of ByteBuffers into an UUID.
+
+    /**
+     * Read an UUID from an array of ByteBuffers into an UUID.
+     *
      * @param msg The buffer from which to read the UUID from.
      * @return The address read.
      */
     public static UUID readUUIDFromBuffer(ByteBuffer[] msg) {
-    	ByteBuffer tmp = Buffers.sliceCompact(msg, 16); 
+        ByteBuffer tmp = Buffers.sliceCompact(msg, 16);
         long msb = tmp.getLong();
         long lsb = tmp.getLong();
         return new UUID(msb, lsb);

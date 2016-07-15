@@ -51,22 +51,22 @@ package net.sf.neem.apps.jmx;
  * Research, 2000.
  */
 public class MkConfig {
-	public static void main(String[] args) {
-		if (args.length!=3) {
-			System.err.println("java net.sf.neem.apps.jmx.MkConfig n e p");
-			System.exit(1);
-		}
-		
-		double n=Double.parseDouble(args[0]);
-		double e=Double.parseDouble(args[1]);
-		double p=Double.parseDouble(args[2]);
+    public static void main(String[] args) {
+        if (args.length != 3) {
+            System.err.println("java net.sf.neem.apps.jmx.MkConfig n e p");
+            System.exit(1);
+        }
 
-		double np=n*(1-e);
-		double c=Math.log(-1/Math.log(p));
-		System.out.println("Redundancy: c="+c);
-		
-		double k=(Math.log(np)+c)/(1-e);
-		System.out.println("Fanout: k="+k);
-	}
+        double n = Double.parseDouble(args[0]);
+        double e = Double.parseDouble(args[1]);
+        double p = Double.parseDouble(args[2]);
+
+        double np = n * (1 - e);
+        double c = Math.log(-1 / Math.log(p));
+        System.out.println("Redundancy: c=" + c);
+
+        double k = (Math.log(np) + c) / (1 - e);
+        System.out.println("Fanout: k=" + k);
+    }
 }
 

@@ -48,16 +48,7 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.spi.SelectorProvider;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -65,28 +56,70 @@ import java.util.logging.Logger;
  * Implementation of the network layer.
  */
 public class Transport implements Runnable {
-	private static Logger logger = Logger.getLogger("net.sf.neem.impl.Transport");
+    private static Logger logger = Logger.getLogger("net.sf.neem.impl.Transport");
+    public int accepted, connected;
+    public int pktOut, pktIn;
+    public int bytesOut, bytesIn;
+    /**
+     * Selector for events
+     */
+    Selector selector;
+    /**
+     * Shared random number generator
+     */
+    Random rand;
+    private InetSocketAddress bind;
+    private Acceptor idinfo;
+    /**
+     * Storage for open connections to other group members
+     * This variable can be queried by an external thread for JMX
+     * management. Therefore, all sections of the code that modify it must
+     * be synchronized. Sections that read it from the protocol thread need
+     * not be synchronized.
+     */
+    private Set<Connection> connections;
+    /**
+     * Queue for tasks
+     */
+    private SortedMap<Long, Runnable> timers;
+    /**
+     * Storage for DataListener protocol events handlers
+     */
+    private Map<Short, DataListener> handlers;
+    /**
+     * Reference for ConnectionListener events handler
+     */
+    private ConnectionListener chandler; // bing!
+    /**
+     * If we're not responding any more
+     */
+    private boolean closed;
+    /**
+     * Execution queue size
+     */
+    private int queueSize = 10;
+    private int bufferSize = 1024;
 
-	public Transport(Random rand, InetSocketAddress local) throws IOException, BindException {
-		this.rand=rand;
-		
-		timers = new TreeMap<Long, Runnable>();
+    public Transport(Random rand, InetSocketAddress local) throws IOException, BindException {
+        this.rand = rand;
+
+        timers = new TreeMap<Long, Runnable>();
         handlers = new HashMap<Short, DataListener>();
         selector = SelectorProvider.provider().openSelector();
 
         connections = new HashSet<Connection>();
         idinfo = new Acceptor(this, local);
-        
+
         this.bind = new InetSocketAddress(local.getAddress(), 0);
     }
-      
-	/**
+
+    /**
      * Get local address.
      */
     public InetSocketAddress getLocalSocketAddress() {
-    	return idinfo.getLocalSocketAddress();
+        return idinfo.getLocalSocketAddress();
     }
-  
+
     /**
      * Get all connections.
      */
@@ -94,24 +127,24 @@ public class Transport implements Runnable {
         return connections.toArray(new Connection[connections.size()]);
     }
 
-	/**
+    /**
      * Get addresses of all connected peers.
      */
     public InetSocketAddress[] getPeers() {
-    	List<InetSocketAddress> addrs=new ArrayList<InetSocketAddress>();
-    	for(Connection info: connections) {
-    		InetSocketAddress addr=info.getPeer();
-    		if (addr!=null)
-    			addrs.add(addr);
-    	}
-    	return addrs.toArray(new InetSocketAddress[addrs.size()]);
+        List<InetSocketAddress> addrs = new ArrayList<InetSocketAddress>();
+        for (Connection info : connections) {
+            InetSocketAddress addr = info.getPeer();
+            if (addr != null)
+                addrs.add(addr);
+        }
+        return addrs.toArray(new InetSocketAddress[addrs.size()]);
     }
 
     /**
      * Call periodically to garbage collect idle connections.
      */
     public void gc() {
-    	for(Connection info: connections)
+        for (Connection info : connections)
             info.handleGC();
     }
 
@@ -121,11 +154,11 @@ public class Transport implements Runnable {
     public synchronized void close() {
         if (closed)
             return;
-        closed=true;
+        closed = true;
         timers.clear();
-        chandler=null;
+        chandler = null;
         selector.wakeup();
-        for(Connection info: connections)
+        for (Connection info : connections)
             info.handleClose();
         idinfo.handleClose();
     }
@@ -139,13 +172,14 @@ public class Transport implements Runnable {
 
     /**
      * Schedule processing task.
+     *
      * @param delay delay before execution
      */
     public synchronized void schedule(Runnable task, long delay) {
-        Long key = System.nanoTime() + delay*1000000;
+        Long key = System.nanoTime() + delay * 1000000;
 
-        while(timers.containsKey(key))
-        	key=key+1;
+        while (timers.containsKey(key))
+            key = key + 1;
         timers.put(key, task);
         if (key == timers.firstKey()) {
             selector.wakeup();
@@ -158,9 +192,9 @@ public class Transport implements Runnable {
      */
     public void add(InetSocketAddress addr) {
         try {
-           new Connection(this, bind, addr);
+            new Connection(this, bind, addr);
         } catch (IOException e) {
-        	logger.log(Level.WARNING, "failed to add peer "+addr, e);
+            logger.log(Level.WARNING, "failed to add peer " + addr, e);
         }
     }
 
@@ -170,7 +204,9 @@ public class Transport implements Runnable {
     public void setDataListener(DataListener handler, short port) {
         this.handlers.put(port, handler);
     }
-        
+
+    // Configuration parameters
+
     /**
      * Sets the reference to the connection handler.
      */
@@ -200,24 +236,24 @@ public class Transport implements Runnable {
                         }
                     }
                 }
-            
+
                 if (task != null) {
                     task.run();
-                } else {    
-                	if (delay>0 && delay<1000000)
-                		delay=1;
-                	else
-                		delay/=1000000;
+                } else {
+                    if (delay > 0 && delay < 1000000)
+                        delay = 1;
+                    else
+                        delay /= 1000000;
 
-                	selector.select(delay);
+                    selector.select(delay);
                     if (closed)
                         break;
-                            
+
                     // Execute pending event-handlers.
-                 
-                    Iterator<SelectionKey> keys=selector.selectedKeys().iterator();
-                    while(keys.hasNext()) {
-                    	SelectionKey key=keys.next();
+
+                    Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                    while (keys.hasNext()) {
+                        SelectionKey key = keys.next();
                         Handler info = (Handler) key.attachment();
 
                         if (!key.isValid()) {
@@ -236,137 +272,83 @@ public class Transport implements Runnable {
                         keys.remove();
                     }
                 }
-                        
+
             } catch (IOException e) {
                 // This handles only exceptions thrown by the selector and the
                 // server socket. Individual connections are dropped silently.
-            	logger.log(Level.SEVERE, "main loop failed, terminating", e);
-            	close();
+                logger.log(Level.SEVERE, "main loop failed, terminating", e);
+                close();
             } catch (CancelledKeyException cke) {
-            	// Don't care
+                // Don't care
             }
         }
     }
 
-	void notifyOpen(final Connection info) {
-        synchronized(this) {
-        	connections.add(info);
+    void notifyOpen(final Connection info) {
+        synchronized (this) {
+            connections.add(info);
         }
         queue(new Runnable() {
-			public void run() {
-				if (chandler != null)
-					chandler.open(info);
-			}
-		});
-	}
-    
-	void notifyClose(final Connection info) {
+            public void run() {
+                if (chandler != null)
+                    chandler.open(info);
+            }
+        });
+    }
+
+    void notifyClose(final Connection info) {
         if (closed) {
-			return;
-		}
-		synchronized (this) {
-			connections.remove(info);
-		}
-		queue(new Runnable() {
-			public void run() {
-				if (chandler!=null)
-					chandler.close(info);
-			}
-		});
-	}
+            return;
+        }
+        synchronized (this) {
+            connections.remove(info);
+        }
+        queue(new Runnable() {
+            public void run() {
+                if (chandler != null)
+                    chandler.close(info);
+            }
+        });
+    }
 
-	void deliver(final Connection source, final Short prt, final ByteBuffer[] msg) {
-		final DataListener handler = handlers.get(prt);
-		if (handler==null) {
-			// unknown handler
-			return;
-		}
-		queue(new Runnable() {
-			public void run() {
-				try {
-					handler.receive(msg, source, prt);
-				} catch(BufferUnderflowException e) {
-	            	logger.log(Level.WARNING, "corrupt or truncated message from "+source.getRemoteAddress(), e);
-					source.handleClose();
-				}
-			}
-		});
-	}
-
-	private InetSocketAddress bind;
-	
-    private Acceptor idinfo;
-
-    /**
-     * Selector for events
-     */
-    Selector selector;
-
-    /** Storage for open connections to other group members
-     * This variable can be queried by an external thread for JMX
-     * management. Therefore, all sections of the code that modify it must
-     * be synchronized. Sections that read it from the protocol thread need
-     * not be synchronized.
-     */
-    private Set<Connection> connections;
-
-    /** 
-     * Queue for tasks
-     */
-    private SortedMap<Long, Runnable> timers;
-
-    /** 
-     * Storage for DataListener protocol events handlers
-     */
-    private Map<Short, DataListener> handlers;
-
-    /** 
-     * Reference for ConnectionListener events handler
-     */
-    private ConnectionListener chandler; // bing!
-
-    /**
-     * If we're not responding any more
-     */
-    private boolean closed;
-    
-    /**
-     * Shared random number generator
-     */
-    Random rand;
-    
-    // Configuration parameters
-    
-    /**
-     * Execution queue size
-     */
-    private int queueSize = 10;
-    private int bufferSize = 1024;
+    void deliver(final Connection source, final Short prt, final ByteBuffer[] msg) {
+        final DataListener handler = handlers.get(prt);
+        if (handler == null) {
+            // unknown handler
+            return;
+        }
+        queue(new Runnable() {
+            public void run() {
+                try {
+                    handler.receive(msg, source, prt);
+                } catch (BufferUnderflowException e) {
+                    logger.log(Level.WARNING, "corrupt or truncated message from " + source.getRemoteAddress(), e);
+                    source.handleClose();
+                }
+            }
+        });
+    }
 
     public int getQueueSize() {
-		return queueSize;
-	}
+        return queueSize;
+    }
 
-	public void setQueueSize(int queueSize) {
-		this.queueSize = queueSize;
-	}
+    // Statistics
 
-	public int getBufferSize() {
-		return bufferSize;
-	}
+    public void setQueueSize(int queueSize) {
+        this.queueSize = queueSize;
+    }
 
-	public void setBufferSize(int bufferSize) {
-		this.bufferSize = bufferSize;
-	}
+    public int getBufferSize() {
+        return bufferSize;
+    }
 
-	// Statistics
-	
-    public int accepted, connected;
-    public int pktOut, pktIn;
-    public int bytesOut, bytesIn;
+    public void setBufferSize(int bufferSize) {
+        this.bufferSize = bufferSize;
+    }
 
     public void resetCounters() {
-        accepted=connected=pktOut=pktIn=bytesOut=bytesIn=0;
-	}
+        accepted = connected = pktOut = pktIn = bytesOut = bytesIn = 0;
+    }
 }
 

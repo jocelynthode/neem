@@ -48,13 +48,14 @@ package net.sf.neem.impl;
 public interface ConnectionListener {
     /**
      * Notification of a new connection.
-     * 
+     *
      * @param info The connection to the new peer.
      */
     public void open(Connection info);
 
     /**
      * Notification of a connection being closed.
+     *
      * @param info The recently closed connection.
      */
     public void close(Connection info);

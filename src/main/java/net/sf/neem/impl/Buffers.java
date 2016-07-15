@@ -47,8 +47,9 @@ import java.util.ArrayList;
  * Buffer manipulation utilities.
  */
 public abstract class Buffers {
-	private Buffers() {}
-	
+    private Buffers() {
+    }
+
     /**
      * Remove data from the head of a buffer array. No copying of
      * data is done. This is useful if data if being resent. This operation
@@ -119,13 +120,13 @@ public abstract class Buffers {
     public static ByteBuffer compact(ByteBuffer[] buffer) {
         int size = count(buffer);
         ByteBuffer res = ByteBuffer.allocate(size);
-		copy(res, buffer);
+        copy(res, buffer);
         res.rewind();
         return res;
     }
 
     /**
-	 * Count remaining bytes in a buffer array.
+     * Count remaining bytes in a buffer array.
      */
     public static int count(ByteBuffer[] buffer) {
         int size = 0;
@@ -133,18 +134,18 @@ public abstract class Buffers {
         for (int i = 0; i < buffer.length; i++) {
             size += buffer[i].remaining();
         }
-		return size;
-	}
+        return size;
+    }
 
     /**
      * Copy a buffer array to a single buffer.
      */
     public static int copy(ByteBuffer res, ByteBuffer[] buffer) {
-		int cnt=0;
+        int cnt = 0;
         for (int i = 0; i < buffer.length && res.hasRemaining(); i++) {
             while (buffer[i].hasRemaining() && res.hasRemaining()) {
                 res.put(buffer[i].get());
-				cnt++;
+                cnt++;
             }
         }
         return cnt;

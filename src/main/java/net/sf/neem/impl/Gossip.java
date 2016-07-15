@@ -41,88 +41,77 @@
 package net.sf.neem.impl;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Random;
-import java.util.UUID;
 
 /**
  * Implementation of gossip. Like bimodal, combines a forward
  * retransmission phase with a repair phase. However, the
  * optimistic phase is also gossip based. UUIDs, instead of
- * sequence numbers are used to identify and discard duplicates.  
+ * sequence numbers are used to identify and discard duplicates.
  */
 public class Gossip implements DataListener {
-	/**
-     *  Creates a new instance of Gossip.
+    public int mcast, deliv, dataIn, dataOut, ackIn, ackOut, nackIn, nackOut;
+    /**
+     * ConnectionListener management module.
+     */
+    private Overlay memb;
+    /**
+     * Represents the class to which messages must be delivered.
+     */
+    private Application handler;
+    /**
+     * The Transport port used by the Gossip class instances to exchange messages.
+     */
+    private short dataport;
+    /**
+     * Random number generator for selecting targets.
+     */
+    private Random rand;
+    /**
+     * Number of peers to relay messages to.
+     */
+    private int fanout;
+    /**
+     * Maximum number of stored ids.
+     */
+    private int maxIds = 100;
+
+    /**
+     * Creates a new instance of Gossip.
      */
     public Gossip(Random rand, Transport net, Overlay memb, short dataport, short ctrlport) {
         this.memb = memb;
         this.dataport = dataport;
         this.rand = rand;
         this.fanout = 11;
-        
+
         net.setDataListener(this, this.dataport);
     }
-    
+
     public void handler(Application handler) {
         this.handler = handler;
     }
-        
+
+    // Configuration parameters
+
     public void multicast(ByteBuffer[] msg) {
         relay(msg, this.fanout, dataport, memb.connections());
     }
 
     private void relay(ByteBuffer[] msg, int fanout, short syncport, Connection[] conns) {
         // Select destinations
-        int[] universe=RandomSamples.mkUniverse(conns.length);
-        int samples=RandomSamples.uniformSample(fanout, universe, rand);
+        int[] universe = RandomSamples.mkUniverse(conns.length);
+        int samples = RandomSamples.uniformSample(fanout, universe, rand);
 
         // Forward
-        for(int i = 0; i < samples; i++) {
+        for (int i = 0; i < samples; i++) {
             conns[universe[i]].send(Buffers.clone(msg), syncport);
         }
     }
-    
+
     public void receive(ByteBuffer[] msg, Connection info, short port) {
         this.handler.deliver(msg);
-	}
-
-
-    /**
-     * ConnectionListener management module.
-     */
-    private Overlay memb;
-
-    /**
-     *  Represents the class to which messages must be delivered.
-     */
-    private Application handler;
-
-    /**
-     *  The Transport port used by the Gossip class instances to exchange messages. 
-     */
-    private short dataport;
-
-
-
-    /**
-     * Random number generator for selecting targets.
-     */
-    private Random rand;
-
-    // Configuration parameters
-    
-    /**
-     *  Number of peers to relay messages to.
-     */
-    private int fanout;
-
-    /**
-     * Maximum number of stored ids.
-     */
-    private int maxIds = 100;
-
+    }
 
     public int getFanout() {
         return fanout;
@@ -136,16 +125,14 @@ public class Gossip implements DataListener {
         return maxIds;
     }
 
+    // Statistics
+
     public void setMaxIds(int maxIds) {
         this.maxIds = maxIds;
     }
-	
-	// Statistics
-    
-    public int mcast, deliv, dataIn, dataOut, ackIn, ackOut, nackIn, nackOut;
 
-	public void resetCounters() {
-		mcast=deliv=dataIn=dataOut=ackIn=ackOut=nackIn=nackOut=0;
-	}
+    public void resetCounters() {
+        mcast = deliv = dataIn = dataOut = ackIn = ackOut = nackIn = nackOut = 0;
+    }
 }
 

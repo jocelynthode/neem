@@ -49,15 +49,15 @@ import java.util.UUID;
  * queue to request known but yet unreceived message.
  */
 public class Known {
-	public UUID id;
-	public List<Connection> senders;
-	public long last;
-	
-	public Known(UUID id, Connection sender) {
-		this.id = id;
-		this.senders = new LinkedList<Connection>();
-		this.senders.add(sender);
-		this.last = -1;
-	}
+    public UUID id;
+    public List<Connection> senders;
+    public long last;
+
+    public Known(UUID id, Connection sender) {
+        this.id = id;
+        this.senders = new LinkedList<Connection>();
+        this.senders.add(sender);
+        this.last = -1;
+    }
 }
 

@@ -50,215 +50,232 @@ import java.util.UUID;
  * so this interface is far from set in stone. Don't rely on it too much.
  */
 public interface ProtocolMBean {
-	// --- Gossip
-	
+    // --- Gossip
+
     /**
-	 * Get the number of gossip target for each round.
-	 * @return number of targets
-	 */
-	public int getGossipFanout();
-	
-	/**
-	 * Set the number of gossip target for each round.
-	 * @param fanout number of targets
-	 */
-	public void setGossipFanout(int fanout);
+     * Get the number of gossip target for each round.
+     *
+     * @return number of targets
+     */
+    public int getGossipFanout();
 
-	/**
-	 * Get the maximum number of cached message ids.
-	 * @return number of ids
-	 */
-	public int getMaxIds();
-	
-	/**
-	 * Set the maximum number of cached message ids. Setting this too
-	 * low may result in duplicate message deliveries.
-	 * @param max number of ids
-	 */
-	public void setMaxIds(int max);
+    /**
+     * Set the number of gossip target for each round.
+     *
+     * @param fanout number of targets
+     */
+    public void setGossipFanout(int fanout);
 
-	/**
-	 * Get number of messages delivered to the application.
-	 */
-	public int getDelivered();
-    
-	/**
-	 * Get number of messages multicast locally by the application.
-	 */
+    /**
+     * Get the maximum number of cached message ids.
+     *
+     * @return number of ids
+     */
+    public int getMaxIds();
+
+    /**
+     * Set the maximum number of cached message ids. Setting this too
+     * low may result in duplicate message deliveries.
+     *
+     * @param max number of ids
+     */
+    public void setMaxIds(int max);
+
+    /**
+     * Get number of messages delivered to the application.
+     */
+    public int getDelivered();
+
+    /**
+     * Get number of messages multicast locally by the application.
+     */
     public int getMulticast();
-    
+
     /**
      * Get number of data packets received.
      */
     public int getDataReceived();
-    
+
     /**
      * Get number of data packets transmitted.
      */
     public int getDataSent();
-    
+
     /**
      * Get number of packet hints received.
      */
     public int getHintsReceived();
-    
+
     /**
      * Get number of packet hints transmitted.
      */
     public int getHintsSent();
-    
+
     /**
      * Get number of pull request transmitted.
      */
     public int getPullReceived();
-    
+
     /**
      * Get number of pull requests transmitted.
      */
     public int getPullSent();
 
-	// --- Overlay parameters
+    // --- Overlay parameters
 
-	/**
-	 * Get globally unique local id.
-	 * @return local id
-	 */
+    /**
+     * Get globally unique local id.
+     *
+     * @return local id
+     */
     public UUID getLocalId();
-	
-	/**
-	 * Get list of currently connected peer ids.
-	 * @return connected peer ids
-	 */
+
+    /**
+     * Get list of currently connected peer ids.
+     *
+     * @return connected peer ids
+     */
     public UUID[] getPeerIds();
-    
+
     /**
      * Get the address being advertised to peers.
+     *
      * @return the address
      */
     public InetSocketAddress getPublicAddress();
 
-	/**
-	 * Get the delay between periodic shuffle.
-	 * @return period in milliseconds
-	 */
-	public int getShufflePeriod();
-	
-	/**
-	 * Set the delay between periodic shuffle.
-	 * @param period in milliseconds
-	 */
-	public void setShufflePeriod(int period);
+    /**
+     * Get the delay between periodic shuffle.
+     *
+     * @return period in milliseconds
+     */
+    public int getShufflePeriod();
 
-	/**
-	 * Get the number of neighbors.
-	 * @return number of neighbors
-	 */
-	public int getOverlayFanout();
-	
-	/**
-	 * Set the number of neighbors.
-	 * @param fanout number of neighbors
-	 */
-	public void setOverlayFanout(int fanout);
-    
-	/**
-	 * Get number of direct join requests received.
-	 */
-	public int getJoinRequests();
-	
-	/**
-	 * Get number of connections purged after overflowing
-	 * local neighborhood.
-	 */
-	public int getPurgedConnections();
-	
-	/**
-	 * Get number of shuffle requests received.
-	 */
-	public int getShufflesReceived();
-	
-	/**
-	 * Get number of shuffle requests transmitted.
-	 */
-	public int getShufflesSent();
-	
-	// --- Transport
-	
-	/**
+    /**
+     * Set the delay between periodic shuffle.
+     *
+     * @param period in milliseconds
+     */
+    public void setShufflePeriod(int period);
+
+    /**
+     * Get the number of neighbors.
+     *
+     * @return number of neighbors
+     */
+    public int getOverlayFanout();
+
+    /**
+     * Set the number of neighbors.
+     *
+     * @param fanout number of neighbors
+     */
+    public void setOverlayFanout(int fanout);
+
+    /**
+     * Get number of direct join requests received.
+     */
+    public int getJoinRequests();
+
+    /**
+     * Get number of connections purged after overflowing
+     * local neighborhood.
+     */
+    public int getPurgedConnections();
+
+    /**
+     * Get number of shuffle requests received.
+     */
+    public int getShufflesReceived();
+
+    /**
+     * Get number of shuffle requests transmitted.
+     */
+    public int getShufflesSent();
+
+    // --- Transport
+
+    /**
      * Local listening socket.
-	 */
+     */
     public InetSocketAddress getLocalAddress();
-    
-	/**
-	 * Get list of currently connected peers.
-	 * @return connected peers
-	 */
+
+    /**
+     * Get list of currently connected peers.
+     *
+     * @return connected peers
+     */
     public InetSocketAddress[] getPeerAddresses();
 
     /**
      * Connect to a new peer.
+     *
      * @param addr hostname or address of peer
      * @param port listening port number
      */
     public void addPeer(String addr, int port);
-    
+
     /**
-	 * Get the default size of buffer queues.
-	 * @return number of messages
-	 */
-	public int getQueueSize();
-	
-	/**
-	 * Set the default size of buffer queues. Currently, this does not modify
-	 * existing queues, only those that are created thereafter.
-	 * @param size number of messages
-	 */
-	public void setQueueSize(int size);
-	
-	/**
-	 * Get the default size of socket buffers.
-	 * @return size in bytes
-	 */
-	public int getBufferSize();
-	
-	/**
-	 * Set the default size of socket buffers.
-	 * @param size size in bytes
-	 */
-	public void setBufferSize(int size);
-	
-	/**
-	 * Get number of socket connections accepted.
-	 */
+     * Get the default size of buffer queues.
+     *
+     * @return number of messages
+     */
+    public int getQueueSize();
+
+    /**
+     * Set the default size of buffer queues. Currently, this does not modify
+     * existing queues, only those that are created thereafter.
+     *
+     * @param size number of messages
+     */
+    public void setQueueSize(int size);
+
+    /**
+     * Get the default size of socket buffers.
+     *
+     * @return size in bytes
+     */
+    public int getBufferSize();
+
+    /**
+     * Set the default size of socket buffers.
+     *
+     * @param size size in bytes
+     */
+    public void setBufferSize(int size);
+
+    /**
+     * Get number of socket connections accepted.
+     */
     public int getAcceptedSocks();
 
     /**
      * Get number of successful sockets connected.
      */
     public int getConnectedSocks();
-    
+
     /**
      * Get number of packets received.
      */
     public int getPacketsReceived();
-    
+
     /**
      * Get number of packets transmited.
      */
     public int getPacketsSent();
-    
+
     /**
      * Get number of raw bytes received.
      */
     public int getBytesReceived();
-    
+
     /**
      * Get number of raw bytes transmitted.
      */
     public int getBytesSent();
-    
+
     // --- Global
-    
+
     /**
      * Resets all counters.
      */

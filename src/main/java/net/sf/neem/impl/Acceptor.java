@@ -50,74 +50,74 @@ import java.nio.channels.SocketChannel;
  * Listening socket accepting connections.
  */
 public class Acceptor extends Handler {
-	/**
-	 * Create a new listening socket.
-	 * 
-	 * @param trans transport object
-	 * @param bind local address to bind to, if any
-	 * @throws IOException 
-	 */
-	Acceptor(Transport trans, InetSocketAddress bind) throws IOException {
-    	super(trans);
-		sock = ServerSocketChannel.open();
-		sock.configureBlocking(false);
-		sock.socket().bind(bind);
+    /**
+     * Socket used to listen for connections
+     */
+    private ServerSocketChannel sock;
 
-		key = sock.register(transport.selector, SelectionKey.OP_ACCEPT);
-		key.attach(this);
-	}
-   
-	void handleWrite() {
-    	// will not happen
+    /**
+     * Create a new listening socket.
+     *
+     * @param trans transport object
+     * @param bind  local address to bind to, if any
+     * @throws IOException
+     */
+    Acceptor(Transport trans, InetSocketAddress bind) throws IOException {
+        super(trans);
+        sock = ServerSocketChannel.open();
+        sock.configureBlocking(false);
+        sock.socket().bind(bind);
+
+        key = sock.register(transport.selector, SelectionKey.OP_ACCEPT);
+        key.attach(this);
+    }
+
+    void handleWrite() {
+        // will not happen
     }
 
     void handleRead() {
-    	// will not happen
+        // will not happen
     }
 
     /**
      * Open connection event handler.
      * When the handler behaves as server.
      */
-    void handleAccept() throws IOException {                
+    void handleAccept() throws IOException {
         SocketChannel nsock = sock.accept();
-       
+
         transport.accepted++;
-        transport.notifyOpen(new Connection(transport,nsock));   
+        transport.notifyOpen(new Connection(transport, nsock));
     }
 
-	void handleConnect() {
-		// will not happen
-	} 
+    void handleConnect() {
+        // will not happen
+    }
 
     /**
      * Closed connection event handler.
      * Either by overlay management or death of peer.
      */
     void handleClose() {
-    	if (key==null)
-    		return;
-    	
-		try {
-			key.channel().close();
-			key.cancel();
-			sock.close();
-			key = null;
-		} catch (IOException e) {
-			// Don't care, we're cleaning up anyway...
-			logger.warn("cleanup failed", e);
-		}
-	}
- 
-	public InetSocketAddress getLocalSocketAddress() {
-		if (sock!=null)
-			return (InetSocketAddress) sock.socket().getLocalSocketAddress();
-		return null;
-	}
-    
-	/**
-     * Socket used to listen for connections
-     */
-    private ServerSocketChannel sock;
+        if (key == null)
+            return;
+
+        try {
+            key.channel().close();
+            key.cancel();
+            sock.close();
+            key = null;
+        } catch (IOException e) {
+            // Don't care, we're cleaning up anyway...
+            logger.warn("cleanup failed", e);
+        }
+    }
+
+    public InetSocketAddress getLocalSocketAddress() {
+        if (sock != null)
+            return (InetSocketAddress) sock.socket().getLocalSocketAddress();
+        return null;
+    }
 }
 

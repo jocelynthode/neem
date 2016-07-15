@@ -40,23 +40,25 @@
 
 package net.sf.neem.impl;
 
-import java.io.IOException;
-import java.nio.channels.SelectionKey;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.channels.SelectionKey;
 
 /**
  * Abstract event handler.
  */
 public abstract class Handler {
-	protected static final Logger logger = LoggerFactory.getLogger("net.sf.neem.impl.Transport");
+    protected static final Logger logger = LoggerFactory.getLogger("net.sf.neem.impl.Transport");
+    protected Transport transport;
+    SelectionKey key;
 
     public Handler(Transport transport) {
-		this.transport = transport;
-	}
+        this.transport = transport;
+    }
 
-	/**
+    /**
      * Write event handler.
      * There's something waiting to be written.
      */
@@ -69,16 +71,12 @@ public abstract class Handler {
      * When the handler behaves as server.
      */
     abstract void handleAccept() throws IOException;
-    
+
     abstract void handleConnect();
-    
+
     /**
      * Closed connection event handler.
      * Either by overlay management or death of peer.
      */
     abstract void handleClose();
-
-    SelectionKey key;
-	
-	protected Transport transport;
 }

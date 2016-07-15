@@ -50,13 +50,34 @@ import java.util.*;
  * number of random walks upon initial join with periodic shuffling.
  */
 public class Overlay implements ConnectionListener, DataListener {
-	/**
+    private final int h = 0;
+    public int joins, purged, shuffleIn, shuffleOut;
+    private Transport net;
+    private InetSocketAddress netid;
+    private short joinport;
+    private short shuffleport;
+    private short idport;
+    private Periodic shuffle;
+    /**
+     * The peers variable can be queried by an external thread for JMX
+     * management. Therefore, all sections of the code that modify it must be
+     * synchronized. Sections that read it from the protocol thread need not be
+     * synchronized.
+     */
+    private HashMap<UUID, Connection> peers;
+    private UUID myId;
+    private Random rand;
+    private int fanout;
+    private int s;
+    private int exch;
+
+    /**
      * Creates a new instance of Overlay
      */
     public Overlay(Random rand, InetSocketAddress id, UUID myId, Transport net, short joinport, short idport, short shuffleport) {
-    	this.rand = rand;
-    	this.netid = id;
-    	this.net = net;
+        this.rand = rand;
+        this.netid = id;
+        this.net = net;
         this.idport = idport;
         this.shuffleport = shuffleport;
         this.joinport = joinport;
@@ -71,11 +92,10 @@ public class Overlay implements ConnectionListener, DataListener {
         this.myId = myId;
         this.peers = new HashMap<UUID, Connection>();
         this.shuffle = new Periodic(rand, net, 10000) {
-        	public void run() {
-        		shuffle();
-        	}
+            public void run() {
+                shuffle();
+            }
         };
-
 
 
         net.setDataListener(this, this.shuffleport);
@@ -86,41 +106,40 @@ public class Overlay implements ConnectionListener, DataListener {
     public void receive(ByteBuffer[] msg, Connection info, short port) {
         info.age = 0;
 
-    	if (port==this.idport)
-    		handleId(msg, info);
-    	else if (port==this.shuffleport)
-    		handleShuffle(msg, info);
-    	else
-    		handleJoin(msg);
+        if (port == this.idport)
+            handleId(msg, info);
+        else if (port == this.shuffleport)
+            handleShuffle(msg, info);
+        else
+            handleJoin(msg);
     }
 
     private void handleId(ByteBuffer[] msg, Connection info) {
-		if (peers.isEmpty()) {
-			info.send(new ByteBuffer[] {
-					UUIDs.writeUUIDToBuffer(myId),
-					Addresses.writeAddressToBuffer(netid) },
-					this.joinport);
-			shuffle.start();
-		}
+        if (peers.isEmpty()) {
+            info.send(new ByteBuffer[]{
+                            UUIDs.writeUUIDToBuffer(myId),
+                            Addresses.writeAddressToBuffer(netid)},
+                    this.joinport);
+            shuffle.start();
+        }
 
-		UUID id = UUIDs.readUUIDFromBuffer(msg);
-		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
+        UUID id = UUIDs.readUUIDFromBuffer(msg);
+        InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
 
-		if (peers.containsKey(id)) {
-			info.handleClose();
-			return;
-		}
+        if (peers.containsKey(id)) {
+            info.handleClose();
+            return;
+        }
 
-		synchronized (this) {
-			info.id = id;
-			info.listen = addr;
-			peers.put(id, info);
-		}
+        synchronized (this) {
+            info.id = id;
+            info.listen = addr;
+            peers.put(id, info);
+        }
     }
 
-
     private void handleShuffle(ByteBuffer[] msg, Connection info) {
-    	shuffleIn++;
+        shuffleIn++;
         ArrayList<Connection> receivedView = new ArrayList<>();
         //add sender here
         receivedView.add(info);
@@ -138,7 +157,7 @@ public class Overlay implements ConnectionListener, DataListener {
         }
         selectToKeep(receivedView);
         /*
-		UUID id = UUIDs.readUUIDFromBuffer(msg);
+        UUID id = UUIDs.readUUIDFromBuffer(msg);
 		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
 
 		if (peers.containsKey(id))
@@ -163,12 +182,12 @@ public class Overlay implements ConnectionListener, DataListener {
         Collections.shuffle(tmpView);
         //Move oldest H items to the end (from view) H = 0 for the moment
         for (int i = 0; i < h; i++) {
-            Connection oldest =  Collections.max(tmpView.subList(0,tmpView.size()-i), (o1, o2) -> o1.age - o2.age);
-            Collections.swap(tmpView, tmpView.indexOf(oldest), tmpView.size() - (i+1));
+            Connection oldest = Collections.max(tmpView.subList(0, tmpView.size() - i), (o1, o2) -> o1.age - o2.age);
+            Collections.swap(tmpView, tmpView.indexOf(oldest), tmpView.size() - (i + 1));
         }
 
         //Append the  exch-1 element from view to toSend
-        for (int i = 0; i < exch-1; i++) {
+        for (int i = 0; i < exch - 1; i++) {
             toSend.add(tmpView.get(i));
         }
         return toSend;
@@ -221,7 +240,7 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     private boolean removeDuplicate(Connection info) {
-        if(peers.containsKey(info.id) && peers.get(info.id).age <= info.age) return true;
+        if (peers.containsKey(info.id) && peers.get(info.id).age <= info.age) return true;
         else if (peers.containsKey(info.id)) {
             peers.get(info.id).age = info.age;
             return true;
@@ -231,20 +250,20 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     private void handleJoin(ByteBuffer[] msg) {
-    	joins++;
-    	ByteBuffer[] beacon = Buffers.clone(msg);
+        joins++;
+        ByteBuffer[] beacon = Buffers.clone(msg);
 
-		Connection[] conns = connections();
-    	for(int i=0;i<conns.length;i++) {
-    		shuffleOut++;
-    		conns[i].send(Buffers.clone(beacon), this.shuffleport);
-		}
+        Connection[] conns = connections();
+        for (int i = 0; i < conns.length; i++) {
+            shuffleOut++;
+            conns[i].send(Buffers.clone(beacon), this.shuffleport);
+        }
     }
 
     public void open(Connection info) {
-    	info.send(new ByteBuffer[] { UUIDs.writeUUIDToBuffer(this.myId),
-            Addresses.writeAddressToBuffer(netid) }, this.idport);
-    	purgeConnections();
+        info.send(new ByteBuffer[]{UUIDs.writeUUIDToBuffer(this.myId),
+                Addresses.writeAddressToBuffer(netid)}, this.idport);
+        purgeConnections();
     }
 
     public synchronized void close(Connection info) {
@@ -252,15 +271,15 @@ public class Overlay implements ConnectionListener, DataListener {
             peers.remove(info.id);
         }
         if (peers.isEmpty()) {
-			// Disconnected. Should it notify the application?
-		}
+            // Disconnected. Should it notify the application?
+        }
     }
 
     private void purgeConnections() {
         Connection[] conns = connections();
         int nc = conns.length;
 
-        while(peers.size() > fanout) {
+        while (peers.size() > fanout) {
             Connection info = conns[rand.nextInt(nc)];
             peers.remove(info.id);
             info.handleClose();
@@ -309,12 +328,12 @@ public class Overlay implements ConnectionListener, DataListener {
 
     /**
      * Send fresh connection to a target peer
-     * 
+     *
      * @param target The connection peer.
      * @param toSend the array of peers
      */
     public void sendPeers(Connection target, ArrayList<Connection> toSend) {
-    	shuffleOut++;
+        shuffleOut++;
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         try {
             ObjectOutputStream out = new ObjectOutputStream(byteOut);
@@ -323,8 +342,10 @@ public class Overlay implements ConnectionListener, DataListener {
             e.printStackTrace();
         }
         ByteBuffer bb = ByteBuffer.wrap(byteOut.toByteArray());
-        target.send(new ByteBuffer[] {bb}, this.shuffleport);
+        target.send(new ByteBuffer[]{bb}, this.shuffleport);
     }
+
+    // Configuration parameters
 
     /**
      * Get all connections that have been validated.
@@ -347,49 +368,23 @@ public class Overlay implements ConnectionListener, DataListener {
      */
     public synchronized InetSocketAddress[] getPeerAddresses() {
         InetSocketAddress[] addrs = new InetSocketAddress[this.peers.size()];
-        int i=0;
-        for(Connection peer: peers.values())
-        	addrs[i++]=peer.listen;
+        int i = 0;
+        for (Connection peer : peers.values())
+            addrs[i++] = peer.listen;
         return addrs;
     }
-    
+
     /**
      * Get globally unique ID in the overlay.
      */
     public UUID getId() {
         return myId;
     }
-    
+
     public InetSocketAddress getLocalSocketAddress() {
-    	return netid;
+        return netid;
     }
 
-    private Transport net;
-	private InetSocketAddress netid;
-    private short joinport;
-    private short shuffleport;
-    private short idport;
-    private Periodic shuffle;
-    
-    /**
-     * The peers variable can be queried by an external thread for JMX
-     * management. Therefore, all sections of the code that modify it must be
-     * synchronized. Sections that read it from the protocol thread need not be
-     * synchronized.
-     */
-    private HashMap<UUID, Connection> peers;
-
-    private UUID myId;
-    private Random rand;
-
-    // Configuration parameters
-    
-    private int fanout;
-    private final int h = 0;
-    private int s;
-    private int exch;
-
-    
     public int getFanout() {
         return fanout;
     }
@@ -404,16 +399,14 @@ public class Overlay implements ConnectionListener, DataListener {
         return shuffle.getInterval();
     }
 
+    // Statistics
+
     public void setShufflePeriod(int shufflePeriod) {
         this.shuffle.setInterval(shufflePeriod);
     }
-    
-    // Statistics
-    
-    public int joins, purged, shuffleIn, shuffleOut;
 
-	public void resetCounters() {
-		joins=purged=shuffleIn=shuffleOut=0;
-	} 
+    public void resetCounters() {
+        joins = purged = shuffleIn = shuffleOut = 0;
+    }
 }
 

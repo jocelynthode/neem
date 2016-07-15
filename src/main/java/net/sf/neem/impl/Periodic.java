@@ -46,53 +46,53 @@ import java.util.Random;
  * A stopable and restartable periodic activity. This uses the scheduling
  * mechanism in the transport layer.
  */
-public abstract class Periodic implements Runnable {	
-	private boolean running;
-	private int interval;
-	private Transport trans;
-	private Runnable runnable;
-	private Random rand;
+public abstract class Periodic implements Runnable {
+    private boolean running;
+    private int interval;
+    private Transport trans;
+    private Runnable runnable;
+    private Random rand;
 
-	/**
-	 * Uses a random interval bounded between 1000ms (inclusive) and an interval (exclusive)
-	 *
-	 * @param interval the higher bound (in ms)
-	 */
-	public Periodic(Random rand, Transport trans, int interval) {
-		this.interval=interval;
-		this.trans=trans;
-		this.rand=rand;
-		runnable=new Runnable() {
-			public void run() {
-				doIt();
-			}
-		};
-	}
-	
-	public void start() {
-		if (running)
-			return;
-		running=true;
-		trans.schedule(runnable, rand.nextInt(interval*2));
-	}
-	
-	public void stop() {
-		running=false;
-	}
-	
-	public void doIt() {
-		if (running)
-			run();
-		if (running)
-			trans.schedule(runnable, rand.nextInt(interval*2));
-	}
-	
-	public int getInterval() {
-		return interval;
-	}
-	
-	public void setInterval(int interval) {
-		this.interval=interval;
-	}
+    /**
+     * Uses a random interval bounded between 1000ms (inclusive) and an interval (exclusive)
+     *
+     * @param interval the higher bound (in ms)
+     */
+    public Periodic(Random rand, Transport trans, int interval) {
+        this.interval = interval;
+        this.trans = trans;
+        this.rand = rand;
+        runnable = new Runnable() {
+            public void run() {
+                doIt();
+            }
+        };
+    }
+
+    public void start() {
+        if (running)
+            return;
+        running = true;
+        trans.schedule(runnable, rand.nextInt(interval * 2));
+    }
+
+    public void stop() {
+        running = false;
+    }
+
+    public void doIt() {
+        if (running)
+            run();
+        if (running)
+            trans.schedule(runnable, rand.nextInt(interval * 2));
+    }
+
+    public int getInterval() {
+        return interval;
+    }
+
+    public void setInterval(int interval) {
+        this.interval = interval;
+    }
 }
 

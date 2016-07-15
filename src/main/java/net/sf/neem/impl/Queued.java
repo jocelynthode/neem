@@ -47,27 +47,33 @@ import java.nio.ByteBuffer;
  */
 public class Queued {
 
-	/** Creates a new instance of Queued */
-	public Queued(ByteBuffer[] msg, short port) {
-		this.msg = msg;
-		this.port = port;
-	}
+    private ByteBuffer[] msg;
+    private short port;
 
-	/** Returns the message in this Queued */
-	public ByteBuffer[] getMsg() {
-		return (this.msg);
-	}
+    /**
+     * Creates a new instance of Queued
+     */
+    public Queued(ByteBuffer[] msg, short port) {
+        this.msg = msg;
+        this.port = port;
+    }
 
-	/** Returns the port to wich the message is intended */
-	public short getPort() {
-		return (this.port);
-	}
-	
-	public String toString() {
-		return Buffers.count(msg)+"bytes to "+port;
-	}
+    /**
+     * Returns the message in this Queued
+     */
+    public ByteBuffer[] getMsg() {
+        return (this.msg);
+    }
 
-	private ByteBuffer[] msg;
-	private short port;
+    /**
+     * Returns the port to wich the message is intended
+     */
+    public short getPort() {
+        return (this.port);
+    }
+
+    public String toString() {
+        return Buffers.count(msg) + "bytes to " + port;
+    }
 }
 

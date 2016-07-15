@@ -49,18 +49,21 @@ import java.io.IOException;
  * messages. It should be used as an indication to use a larger buffer.
  */
 public class BufferTooSmallException extends IOException {
-	BufferTooSmallException(int required) {this.required=required;}
+    private static final long serialVersionUID = 1L;
+    private int required;
 
-	/**
-	 * Obtains the number of bytes remaining required in the buffer to properly
-	 * handle the next message in the queue.
-	 * 
-	 * @return number of bytes required
-	 */
-	public int getRequired() {return required;}
-	
-	private int required;
-	
-	private static final long serialVersionUID = 1L;
+    BufferTooSmallException(int required) {
+        this.required = required;
+    }
+
+    /**
+     * Obtains the number of bytes remaining required in the buffer to properly
+     * handle the next message in the queue.
+     *
+     * @return number of bytes required
+     */
+    public int getRequired() {
+        return required;
+    }
 }
 

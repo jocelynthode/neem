@@ -50,7 +50,7 @@ public interface Application {
 
     /**
      * Deliver a message to the application.
-     * 
+     *
      * @param msg The message.
      */
     public void deliver(ByteBuffer[] msg);

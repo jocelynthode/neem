@@ -40,77 +40,76 @@
 
 package net.sf.neem.apps.perf;
 
+import net.sf.neem.MulticastChannel;
+import net.sf.neem.ProtocolMBean;
+import net.sf.neem.apps.Addresses;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
-import net.sf.neem.MulticastChannel;
-import net.sf.neem.ProtocolMBean;
-import net.sf.neem.apps.Addresses;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Creates a crowd of NeEM peers. All messages received are discarded. No
  * messages are sent. Use JMX to manipulate paramters.
  */
 public class Crowd extends Thread {
-	private static Logger logger = LoggerFactory.getLogger(Crowd.class); 
-	
+    private static Logger logger = LoggerFactory.getLogger(Crowd.class);
+
     private MulticastChannel neem;
-    
-	public Crowd(MulticastChannel neem) {
+
+    public Crowd(MulticastChannel neem) {
         this.neem = neem;
     }
-    
-    public void run() {
-        try {
-            ByteBuffer bb = ByteBuffer.allocate(1);
-            while (true) {
-            	bb.clear();
-                neem.read(bb);
-            }
-        } catch (Exception e) {
-        	logger.error("exception caught by worker", e);
-        }
-    }
+
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
             System.err.println("Usage: net.sf.neem.apps.perf.Crowd baseport instances peer1 ... peerN");
             System.exit(1);
         }
-     
+
         try {
-			int port = Integer.parseInt(args[0]);
-			int instances = Integer.parseInt(args[1]);
+            int port = Integer.parseInt(args[0]);
+            int instances = Integer.parseInt(args[1]);
 
-			MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
-			Crowd[] smalls=new Crowd[instances];
-			for (int i = 0; i < instances; i++) {
-				smalls[i] = new Crowd(new MulticastChannel(
-						new InetSocketAddress(port + i)));
-				smalls[i].neem.setTruncateMode(true);
-				ProtocolMBean mbean = smalls[i].neem.getProtocolMBean();
-				ObjectName name = new ObjectName(
-						"net.sf.neem:type=Protocol,id=" + mbean.getLocalId());
-				mbs.registerMBean(mbean, name);
-				smalls[i].start();
-			}
-			for (int i = 2; i < args.length; i++)
+            Crowd[] smalls = new Crowd[instances];
+            for (int i = 0; i < instances; i++) {
+                smalls[i] = new Crowd(new MulticastChannel(
+                        new InetSocketAddress(port + i)));
+                smalls[i].neem.setTruncateMode(true);
+                ProtocolMBean mbean = smalls[i].neem.getProtocolMBean();
+                ObjectName name = new ObjectName(
+                        "net.sf.neem:type=Protocol,id=" + mbean.getLocalId());
+                mbs.registerMBean(mbean, name);
+                smalls[i].start();
+            }
+            for (int i = 2; i < args.length; i++)
                 smalls[0].neem.connect(Addresses.parse(args[i], false));
-			for (int i = 1; i < instances; i++) {
-				Thread.sleep(50);
-				smalls[i].neem.connect(smalls[0].neem.getLocalSocketAddress());
-			}
-		} catch (Exception e) {
-        	logger.error("exception caught", e);
-		}
+            for (int i = 1; i < instances; i++) {
+                Thread.sleep(50);
+                smalls[i].neem.connect(smalls[0].neem.getLocalSocketAddress());
+            }
+        } catch (Exception e) {
+            logger.error("exception caught", e);
+        }
+    }
+
+    public void run() {
+        try {
+            ByteBuffer bb = ByteBuffer.allocate(1);
+            while (true) {
+                bb.clear();
+                neem.read(bb);
+            }
+        } catch (Exception e) {
+            logger.error("exception caught by worker", e);
+        }
     }
 }
 

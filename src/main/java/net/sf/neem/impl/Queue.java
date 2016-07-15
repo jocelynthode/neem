@@ -48,25 +48,31 @@ import java.util.Random;
  * Implementation of a FIFO queue with random purging.
  */
 public class Queue {
+    /* Level of occupancy above which this queue drops all messages. */
+    public int max;
+    /* Object storage vector */
+    private List<Queued> queue;
+    private Random rand;
+
     /**
      * Creates a new queue.
-     * 
-     * @param max The maximum number of elements this queue can hold.
-     * @param random 
+     *
+     * @param max    The maximum number of elements this queue can hold.
+     * @param random
      */
     public Queue(int max, Random random) {
         this.queue = new ArrayList<Queued>();
         this.max = max;
-        this.rand=random;
+        this.rand = random;
     }
 
     /**
      * Inserts (enqueues) an Object to this queue.
-     * 
+     *
      * @param o The object to be enqueued.
      */
     public void push(Queued o) {
-        if (queue.size()<max)
+        if (queue.size() < max)
             this.queue.add(o);
         else {
             int pos = rand.nextInt(queue.size() - 1);
@@ -78,7 +84,7 @@ public class Queue {
 
     /**
      * Retrieves (dequeues) an Object from this queue.
-     * 
+     *
      * @return The object to be dequeued.
      */
     public Queued pop() {
@@ -86,19 +92,11 @@ public class Queue {
     }
 
     public boolean isEmpty() {
-    	return queue.isEmpty();
+        return queue.isEmpty();
     }
-    
+
     public String toString() {
-    	return queue.toString();
+        return queue.toString();
     }
-    
-    /* Object storage vector */
-    private List<Queued> queue;
-    
-    /* Level of occupancy above which this queue drops all messages. */
-    public int max;
-    
-    private Random rand;
 }
 

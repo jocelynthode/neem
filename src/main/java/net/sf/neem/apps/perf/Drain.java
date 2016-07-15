@@ -40,28 +40,26 @@
 
 package net.sf.neem.apps.perf;
 
-import java.lang.management.ManagementFactory;
-import java.nio.ByteBuffer;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
 import net.sf.neem.MulticastChannel;
 import net.sf.neem.ProtocolMBean;
 import net.sf.neem.apps.Addresses;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
+
 public class Drain {
-	private static Logger logger = LoggerFactory.getLogger(Drain.class); 
+    private static Logger logger = LoggerFactory.getLogger(Drain.class);
 
     public static void main(String[] args) {
         if (args.length < 1) {
             System.err.println("Usage: net.sf.neem.apps.perf.Drain local peer1 ... peerN");
             System.exit(1);
         }
-        
+
         try {
             MulticastChannel neem = new MulticastChannel(Addresses.parse(args[0], true));
             neem.setTruncateMode(true);
@@ -71,20 +69,20 @@ public class Drain {
 
             MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
             ProtocolMBean mbean = neem.getProtocolMBean();
-            ObjectName name = new ObjectName("net.sf.neem:type=Protocol,id="+mbean.getLocalId());
+            ObjectName name = new ObjectName("net.sf.neem:type=Protocol,id=" + mbean.getLocalId());
             mbs.registerMBean(mbean, name);
 
-            String id=mbean.getLocalId().toString();
+            String id = mbean.getLocalId().toString();
             byte[] buf = new byte[1000];
             ByteBuffer bb = ByteBuffer.wrap(buf);
             while (true) {
-            	bb.clear();
+                bb.clear();
                 neem.read(bb);
                 bb.flip();
-                logger.info("{} {} {}", id, (System.nanoTime()/1000), new String(buf,0,bb.remaining()));
+                logger.info("{} {} {}", id, (System.nanoTime() / 1000), new String(buf, 0, bb.remaining()));
             }
         } catch (Exception e) {
-        	logger.error("exception caught", e);
+            logger.error("exception caught", e);
         }
     }
 }

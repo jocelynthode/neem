@@ -40,59 +40,54 @@
 
 package net.sf.neem.apps.jmx;
 
+import javax.management.*;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 import java.util.Set;
 
-import javax.management.Attribute;
-import javax.management.AttributeList;
-import javax.management.JMException;
-import javax.management.MBeanServerConnection;
-import javax.management.ObjectName;
-import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
-
 public class Reconfig {
-	@SuppressWarnings("unchecked")
-	private static void dump(String host, Properties props) throws IOException, JMException {
-		JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://"+host+"/jmxrmi");
-		JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
-		MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-		Set<ObjectName> beans=mbsc.queryNames(new ObjectName("net.sf.neem:type=Protocol,*"), null);
-		AttributeList attrs=new AttributeList();
-		for(Object attr: props.keySet()) {
-			String key=(String)attr;
-			Integer value=new Integer(props.getProperty(key));
-			attrs.add(new Attribute(key, value));
-		}
-		for(ObjectName b: beans) {
-			try {
-				mbsc.setAttributes(b, attrs);
-				System.out.println(" - "+b);
-			} catch (Exception e) {
-				System.err.println("Cannot set attributes on " + b);
-				e.printStackTrace();
-			}
-		}		
-	}
-	
-	public static void main(String[] args) {
-		if (args.length < 2) {
+    @SuppressWarnings("unchecked")
+    private static void dump(String host, Properties props) throws IOException, JMException {
+        JMXServiceURL url = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://" + host + "/jmxrmi");
+        JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
+        MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+        Set<ObjectName> beans = mbsc.queryNames(new ObjectName("net.sf.neem:type=Protocol,*"), null);
+        AttributeList attrs = new AttributeList();
+        for (Object attr : props.keySet()) {
+            String key = (String) attr;
+            Integer value = new Integer(props.getProperty(key));
+            attrs.add(new Attribute(key, value));
+        }
+        for (ObjectName b : beans) {
+            try {
+                mbsc.setAttributes(b, attrs);
+                System.out.println(" - " + b);
+            } catch (Exception e) {
+                System.err.println("Cannot set attributes on " + b);
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        if (args.length < 2) {
             System.err.println("Usage: net.sf.neem.apps.jmx.Reconfig properties host:port ...");
             System.exit(1);
-		}
-		
-		try {
-			Properties props=new Properties();
-			props.load(new FileInputStream(args[0]));
-			System.out.println("Loading: "+props);
-			for(int i=1;i<args.length;i++)
-				dump(args[i], props);
-		} catch(Exception e) {
-			e.printStackTrace();
-		}
-	}
+        }
+
+        try {
+            Properties props = new Properties();
+            props.load(new FileInputStream(args[0]));
+            System.out.println("Loading: " + props);
+            for (int i = 1; i < args.length; i++)
+                dump(args[i], props);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
 

@@ -54,8 +54,8 @@ public interface DataListener {
      * start by unmarshalling the message. If it has been truncated
      * or is invalied, the resulting exception will thus do the
      * right thing
-     * 
-     * @param msg The incoming message.
+     *
+     * @param msg  The incoming message.
      * @param info The source connection.
      * @param port Destination port.
      */
