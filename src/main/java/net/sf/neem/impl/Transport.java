@@ -198,6 +198,14 @@ public class Transport implements Runnable {
         }
     }
 
+    public void add(InetSocketAddress addr, int age) {
+        try {
+            new Connection(this, bind, addr, age);
+        } catch (IOException e) {
+            logger.log(Level.WARNING, "failed to add peer " + addr, e);
+        }
+    }
+
     /**
      * Add a reference to a message handler.
      */

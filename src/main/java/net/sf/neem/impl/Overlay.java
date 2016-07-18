@@ -104,6 +104,9 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
+        System.out.println("Connection :  " + info.listen + " port : "+port);
+
+        System.out.println("\nPeers length : "+connections().length);
         info.age = 0;
 
         if (port == this.idport)
@@ -140,22 +143,30 @@ public class Overlay implements ConnectionListener, DataListener {
 
     private void handleShuffle(ByteBuffer[] msg, Connection info) {
         shuffleIn++;
-        ArrayList<Connection> receivedView = new ArrayList<>();
+        ArrayList<PeerInfo> receivedView = new ArrayList<>();
+
         //add sender here
-        receivedView.add(info);
+        receivedView.add(new PeerInfo(info));
         //TODO refactor reading from ByteBuffer[]
         for (ByteBuffer byteBuffer : msg) {
-            byte[] content = byteBuffer.array();
+            byte[] content = new byte[100000];
+            byteBuffer.get(content);
             ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
 
             try {
                 ObjectInputStream objectIn = new ObjectInputStream(byteIn);
-                receivedView.addAll((ArrayList<Connection>) objectIn.readObject());
+                PeerInfo[] test = (PeerInfo[]) objectIn.readObject();
+                receivedView.addAll(new ArrayList<>(Arrays.asList(test)));
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
         }
-        selectToKeep(receivedView);
+        synchronized (this) {
+            // send a view back
+            sendPeers(info, selectToSend());
+
+            selectToKeep(receivedView);
+        }
         /*
         UUID id = UUIDs.readUUIDFromBuffer(msg);
 		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
@@ -175,8 +186,8 @@ public class Overlay implements ConnectionListener, DataListener {
 		*/
     }
 
-    private ArrayList<Connection> selectToSend() {
-        ArrayList<Connection> toSend = new ArrayList<>();
+    private ArrayList<PeerInfo> selectToSend() {
+        ArrayList<PeerInfo> toSend = new ArrayList<>();
         ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
 
         Collections.shuffle(tmpView);
@@ -188,33 +199,36 @@ public class Overlay implements ConnectionListener, DataListener {
 
         //Append the  exch-1 element from view to toSend
         for (int i = 0; i < exch - 1; i++) {
-            toSend.add(tmpView.get(i));
+            Connection conn = tmpView.get(i);
+            PeerInfo peer = new PeerInfo(conn);
+            toSend.add(peer);
         }
         return toSend;
     }
 
     //TODO is C really equals to fanout ?
-    private synchronized void selectToKeep(ArrayList<Connection> receivedView) {
+    private synchronized void selectToKeep(ArrayList<PeerInfo> receivedView) {
         //remove duplicates from view
-        ArrayList<Connection> toRemove = new ArrayList<>();
-        for (Connection conn : receivedView) {
-            boolean isDuplicate = removeDuplicate(conn);
-            if (isDuplicate) toRemove.add(conn);
+        ArrayList<PeerInfo> toRemove = new ArrayList<>();
+        for (PeerInfo peer : receivedView) {
+            boolean isDuplicate = removeDuplicate(peer);
+            if (isDuplicate) toRemove.add(peer);
         }
         receivedView.removeAll(toRemove);
         //merge view and received in an arrayList
         ArrayList<Connection> newView = new ArrayList<>(peers.values());
-        newView.addAll(receivedView);
+        receivedView.sort((o1, o2) -> o1.age - o2.age);
         //remove min(H, #view-c) oldest items
         int minimum = (Math.min(h, (newView.size() - fanout)));
         while (minimum > 0) {
             Connection oldestConnection = Collections.max(newView, (o1, o2) -> o1.age - o2.age);
-            newView.remove(oldestConnection);
-            if (peers.containsKey(oldestConnection.id)) {
-                purgeConnection(oldestConnection);
+            if (oldestConnection.age <= receivedView.get(receivedView.size() - 1).age) {
+                receivedView.remove(receivedView.size() - 1);
             } else {
-                receivedView.remove(oldestConnection);
+                newView.remove(oldestConnection);
+                purgeConnection(oldestConnection);
             }
+
             minimum--;
         }
 
@@ -222,24 +236,20 @@ public class Overlay implements ConnectionListener, DataListener {
         minimum = Math.min(s, (newView.size() - fanout));
         while (minimum > 0) {
             Connection removed = newView.remove(0);
-            if (peers.containsKey(removed.id)) {
-                purgeConnection(removed);
-            } else {
-                receivedView.remove(removed);
-            }
+            purgeConnection(removed);
             minimum--;
         }
 
         //add new connections
-        for (Connection conn : receivedView) {
-            net.add(conn.listen);
+        for (PeerInfo peer : receivedView) {
+            net.add(peer.listen, peer.age);
         }
 
         //trim size
         purgeConnections();
     }
 
-    private boolean removeDuplicate(Connection info) {
+    private boolean removeDuplicate(PeerInfo info) {
         if (peers.containsKey(info.id) && peers.get(info.id).age <= info.age) return true;
         else if (peers.containsKey(info.id)) {
             peers.get(info.id).age = info.age;
@@ -304,7 +314,7 @@ public class Overlay implements ConnectionListener, DataListener {
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
         //selectTosend
-        ArrayList<Connection> toSend = selectToSend();
+        ArrayList<PeerInfo> toSend = selectToSend();
         //send to Partner
         this.sendPeers(partner, toSend);
         // increase all ages in the view
@@ -332,12 +342,12 @@ public class Overlay implements ConnectionListener, DataListener {
      * @param target The connection peer.
      * @param toSend the array of peers
      */
-    public void sendPeers(Connection target, ArrayList<Connection> toSend) {
+    public void sendPeers(Connection target, ArrayList<PeerInfo> toSend) {
         shuffleOut++;
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         try {
             ObjectOutputStream out = new ObjectOutputStream(byteOut);
-            out.writeObject(toSend);
+            out.writeObject(toSend.toArray());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -408,5 +418,24 @@ public class Overlay implements ConnectionListener, DataListener {
     public void resetCounters() {
         joins = purged = shuffleIn = shuffleOut = 0;
     }
+
+    private class PeerInfo implements Serializable {
+        InetSocketAddress listen;
+        UUID id;
+        int age;
+
+        public PeerInfo(InetSocketAddress listen, UUID id, int age) {
+            this.listen = listen;
+            this.id = id;
+            this.age = age;
+        }
+
+        public PeerInfo(Connection conn) {
+            this.listen = conn.listen;
+            this.id = conn.id;
+            this.age = conn.age;
+        }
+    }
+
 }
 

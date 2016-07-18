@@ -41,6 +41,7 @@
 package net.sf.neem.impl;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -108,6 +109,24 @@ public class Connection extends Handler {
 
         logger.info("opening connection to {}", remote);
     }
+
+    Connection(Transport trans, InetSocketAddress bind, InetSocketAddress remote, int age) throws IOException {
+        super(trans);
+        this.age = age;
+        sock = SocketChannel.open();
+        sock.configureBlocking(false);
+        if (bind != null) {
+            sock.socket().bind(bind);
+        }
+        sock.connect(remote);
+
+        key = sock.register(transport.selector, SelectionKey.OP_CONNECT);
+        key.attach(this);
+        queue = new Queue(transport.getQueueSize(), transport.rand);
+
+        logger.info("opening connection to {}", remote);
+    }
+
     /**
      * Create a new connection from an existing socket (used to associate a Connection to
      * an incoming connection request).
