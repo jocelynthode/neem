@@ -60,7 +60,6 @@ public class Overlay implements ConnectionListener, DataListener {
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
     private InetSocketAddress netid;
-    private short joinport;
     private short shuffleport;
     private short idport;
     private Periodic shuffle;
@@ -80,13 +79,13 @@ public class Overlay implements ConnectionListener, DataListener {
     /**
      * Creates a new instance of Overlay
      */
-    public Overlay(Random rand, InetSocketAddress id, UUID myId, Transport net, short joinport, short idport, short shuffleport) {
+    //TODO probably get initial view from constructor
+    public Overlay(Random rand, InetSocketAddress id, UUID myId, Transport net, short idport, short shuffleport) {
         this.rand = rand;
         this.netid = id;
         this.net = net;
         this.idport = idport;
         this.shuffleport = shuffleport;
-        this.joinport = joinport;
 
         /*
          * Default Fanout
@@ -117,16 +116,10 @@ public class Overlay implements ConnectionListener, DataListener {
             handleId(msg, info);
         else if (port == this.shuffleport)
             handleShuffle(msg, info);
-        else
-            handleJoin(msg);
     }
 
     private void handleId(ByteBuffer[] msg, Connection info) {
         if (peers.isEmpty()) {
-            info.send(new ByteBuffer[]{
-                            UUIDs.writeUUIDToBuffer(myId),
-                            Addresses.writeAddressToBuffer(netid)},
-                    this.joinport);
             shuffle.start();
         }
 
@@ -173,24 +166,6 @@ public class Overlay implements ConnectionListener, DataListener {
 
             selectToKeep(receivedView);
         }
-        //System.out.println("View : "+Arrays.toString(peers.values().stream().map(conn -> conn.listen).toArray()));
-        /*
-        UUID id = UUIDs.readUUIDFromBuffer(msg);
-		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
-
-		if (peers.containsKey(id))
-			return;
-
-		// Flip a coin...
-		if (peers.size() < fanout || rand.nextFloat() > 0.5) {
-			net.add(addr);
-		} else {
-			shuffleOut++;
-			Connection[] conns = connections();
-			int idx = rand.nextInt(conns.length);
-			conns[idx].send(Buffers.clone(beacon), this.shuffleport);
-		}
-		*/
     }
 
     private int readSize(ByteBuffer[] msg) {
@@ -275,17 +250,6 @@ public class Overlay implements ConnectionListener, DataListener {
         }
     }
 
-    private void handleJoin(ByteBuffer[] msg) {
-        joins++;
-        ByteBuffer[] beacon = Buffers.clone(msg);
-
-        Connection[] conns = connections();
-        for (int i = 0; i < conns.length; i++) {
-            shuffleOut++;
-            //conns[i].send(Buffers.clone(beacon), this.shuffleport);
-        }
-    }
-
     public void open(Connection info) {
         info.send(new ByteBuffer[]{UUIDs.writeUUIDToBuffer(this.myId),
                 Addresses.writeAddressToBuffer(netid)}, this.idport);
@@ -337,19 +301,6 @@ public class Overlay implements ConnectionListener, DataListener {
         for (Connection connection : peers.values()) {
             connection.age++;
         }
-
-        /*
-        Connection[] conns = connections();
-        if (conns.length<2)
-        	return;
-		Connection toSend = conns[rand.nextInt(conns.length)];
-		Connection toReceive = conns[rand.nextInt(conns.length)];
-
-		if (toSend.id == null)
-			return;
-
-		this.tradePeers(toReceive, toSend);
-		*/
     }
 
     /**

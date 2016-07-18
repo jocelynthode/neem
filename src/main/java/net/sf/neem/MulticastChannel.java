@@ -99,7 +99,7 @@ public class MulticastChannel implements InterruptibleChannel,
             pub = new InetSocketAddress(InetAddress.getLocalHost(), net.getLocalSocketAddress().getPort());
         if (id == null)
             id = UUID.randomUUID();
-        overlay = new Overlay(rand, pub, id, net, (short) 2, (short) 3, (short) 4);
+        overlay = new Overlay(rand, pub, id, net, (short) 3, (short) 4);
         gossip = new Gossip(rand, net, overlay, (short) 0, (short) 1);
         gossip.handler(new Application() {
             public void deliver(ByteBuffer[] buf) {
