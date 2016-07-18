@@ -40,10 +40,15 @@
 
 package net.sf.neem.impl;
 
+import org.nustaq.serialization.FSTConfiguration;
+import org.nustaq.serialization.FSTObjectInput;
+import org.nustaq.serialization.FSTObjectOutput;
+
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of overlay management. This class combines a
@@ -51,6 +56,7 @@ import java.util.*;
  */
 public class Overlay implements ConnectionListener, DataListener {
     private final int h = 0;
+    private final FSTConfiguration conf;
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
     private InetSocketAddress netid;
@@ -96,6 +102,7 @@ public class Overlay implements ConnectionListener, DataListener {
                 shuffle();
             }
         };
+        this.conf = FSTConfiguration.createDefaultConfiguration();
 
 
         net.setDataListener(this, this.shuffleport);
@@ -104,9 +111,6 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
-        System.out.println("Connection :  " + info.listen + " port : "+port);
-
-        System.out.println("\nPeers length : "+connections().length);
         info.age = 0;
 
         if (port == this.idport)
@@ -147,26 +151,29 @@ public class Overlay implements ConnectionListener, DataListener {
 
         //add sender here
         receivedView.add(new PeerInfo(info));
-        //TODO refactor reading from ByteBuffer[]
-        for (ByteBuffer byteBuffer : msg) {
-            byte[] content = new byte[100000];
-            byteBuffer.get(content);
-            ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
+        int len = readSize(msg);
+        byte[] content = new byte[len];
+        Buffers.sliceCompact(msg,len).get(content);
 
-            try {
-                ObjectInputStream objectIn = new ObjectInputStream(byteIn);
-                PeerInfo[] test = (PeerInfo[]) objectIn.readObject();
-                receivedView.addAll(new ArrayList<>(Arrays.asList(test)));
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-            }
+        ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
+
+        try {
+            FSTObjectInput in = new FSTObjectInput(byteIn);
+            ArrayList<PeerInfo> unserializedList = (ArrayList<PeerInfo>) in.readObject();
+            in.close();
+            receivedView.addAll(unserializedList);
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
         }
+
         synchronized (this) {
             // send a view back
-            sendPeers(info, selectToSend());
+            ArrayList<PeerInfo> toSend = selectToSend();
+            sendPeers(info, toSend);
 
             selectToKeep(receivedView);
         }
+        //System.out.println("View : "+Arrays.toString(peers.values().stream().map(conn -> conn.listen).toArray()));
         /*
         UUID id = UUIDs.readUUIDFromBuffer(msg);
 		InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
@@ -186,6 +193,11 @@ public class Overlay implements ConnectionListener, DataListener {
 		*/
     }
 
+    private int readSize(ByteBuffer[] msg) {
+        ByteBuffer bb = Buffers.sliceCompact(msg, 4);
+        return bb.getInt();
+    }
+
     private ArrayList<PeerInfo> selectToSend() {
         ArrayList<PeerInfo> toSend = new ArrayList<>();
         ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
@@ -198,10 +210,14 @@ public class Overlay implements ConnectionListener, DataListener {
         }
 
         //Append the  exch-1 element from view to toSend
-        for (int i = 0; i < exch - 1; i++) {
-            Connection conn = tmpView.get(i);
-            PeerInfo peer = new PeerInfo(conn);
-            toSend.add(peer);
+        if (tmpView.size() > exch) {
+            for (int i = 0; i < exch - 1; i++) {
+                Connection conn = tmpView.get(i);
+                PeerInfo peer = new PeerInfo(conn);
+                toSend.add(peer);
+            }
+        } else {
+            toSend.addAll(tmpView.stream().map(PeerInfo::new).collect(Collectors.toList()));
         }
         return toSend;
     }
@@ -266,7 +282,7 @@ public class Overlay implements ConnectionListener, DataListener {
         Connection[] conns = connections();
         for (int i = 0; i < conns.length; i++) {
             shuffleOut++;
-            conns[i].send(Buffers.clone(beacon), this.shuffleport);
+            //conns[i].send(Buffers.clone(beacon), this.shuffleport);
         }
     }
 
@@ -346,13 +362,19 @@ public class Overlay implements ConnectionListener, DataListener {
         shuffleOut++;
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         try {
-            ObjectOutputStream out = new ObjectOutputStream(byteOut);
-            out.writeObject(toSend.toArray());
+            FSTObjectOutput out = new FSTObjectOutput(byteOut);
+            out.writeObject(toSend);
+            out.flush();
+            out.close();
         } catch (IOException e) {
             e.printStackTrace();
+
         }
+
+        byte[] len = ByteBuffer.allocate(4).putInt(byteOut.size()).array();
+        ByteBuffer lenBB = ByteBuffer.wrap(len);
         ByteBuffer bb = ByteBuffer.wrap(byteOut.toByteArray());
-        target.send(new ByteBuffer[]{bb}, this.shuffleport);
+        target.send(new ByteBuffer[]{lenBB,bb}, this.shuffleport);
     }
 
     // Configuration parameters
@@ -417,24 +439,6 @@ public class Overlay implements ConnectionListener, DataListener {
 
     public void resetCounters() {
         joins = purged = shuffleIn = shuffleOut = 0;
-    }
-
-    private class PeerInfo implements Serializable {
-        InetSocketAddress listen;
-        UUID id;
-        int age;
-
-        public PeerInfo(InetSocketAddress listen, UUID id, int age) {
-            this.listen = listen;
-            this.id = id;
-            this.age = age;
-        }
-
-        public PeerInfo(Connection conn) {
-            this.listen = conn.listen;
-            this.id = conn.id;
-            this.age = conn.age;
-        }
     }
 
 }
