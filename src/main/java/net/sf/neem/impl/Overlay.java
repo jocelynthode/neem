@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * number of random walks upon initial join with periodic shuffling.
  */
 public class Overlay implements ConnectionListener, DataListener {
-    private final int h = 0;
+    private final int h = 4;
     private final FSTConfiguration conf;
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
@@ -75,6 +75,8 @@ public class Overlay implements ConnectionListener, DataListener {
     private int fanout;
     private int s;
     private int exch;
+    private int cycles = 0;
+
 
     /**
      * Creates a new instance of Overlay
@@ -96,7 +98,7 @@ public class Overlay implements ConnectionListener, DataListener {
 
         this.myId = myId;
         this.peers = new HashMap<UUID, Connection>();
-        this.shuffle = new Periodic(rand, net, 10000) {
+        this.shuffle = new Periodic(rand, net, 1000) {
             public void run() {
                 shuffle();
             }
@@ -139,6 +141,8 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     private void handleShuffle(ByteBuffer[] msg, Connection info) {
+        //if not running start shuffle
+        shuffle.start();
         shuffleIn++;
         ArrayList<PeerInfo> receivedView = new ArrayList<>();
 
@@ -178,7 +182,7 @@ public class Overlay implements ConnectionListener, DataListener {
         ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
 
         Collections.shuffle(tmpView);
-        //Move oldest H items to the end (from view) H = 0 for the moment
+        //Move oldest H items to the end (from view)
         for (int i = 0; i < h; i++) {
             Connection oldest = Collections.max(tmpView.subList(0, tmpView.size() - i), (o1, o2) -> o1.age - o2.age);
             Collections.swap(tmpView, tmpView.indexOf(oldest), tmpView.size() - (i + 1));
@@ -197,7 +201,6 @@ public class Overlay implements ConnectionListener, DataListener {
         return toSend;
     }
 
-    //TODO is C really equals to fanout ?
     private synchronized void selectToKeep(ArrayList<PeerInfo> receivedView) {
         //remove duplicates from view
         ArrayList<PeerInfo> toRemove = new ArrayList<>();
@@ -289,8 +292,16 @@ public class Overlay implements ConnectionListener, DataListener {
      * Shuffle a part of view to an other peer
      */
     private synchronized void shuffle() {
+        if (cycles % 10 == 0) {
+            System.out.println("Cycle: " + cycles);
+            StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
+            sj.add(netid.getAddress().getHostAddress());
+            List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
+            hostnames.forEach(sj::add);
+            System.out.println(sj.toString());
+        }
         //don't shuffle if not enough in the view
-        if (connections().length < fanout) return;
+        if (connections().length < 2) return;
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
         //selectTosend
@@ -298,9 +309,8 @@ public class Overlay implements ConnectionListener, DataListener {
         //send to Partner
         this.sendPeers(partner, toSend);
         // increase all ages in the view
-        for (Connection connection : peers.values()) {
-            connection.age++;
-        }
+        peers.values().forEach(connection -> connection.age++);
+        cycles++;
     }
 
     /**
