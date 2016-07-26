@@ -109,6 +109,8 @@ public class Overlay implements ConnectionListener, DataListener {
         net.setDataListener(this, this.shuffleport);
         net.setDataListener(this, this.idport);
         net.setConnectionListener(this);
+        //start shuffling right away
+        shuffle.start();
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
@@ -121,10 +123,6 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     private void handleId(ByteBuffer[] msg, Connection info) {
-        if (peers.isEmpty()) {
-            shuffle.start();
-        }
-
         UUID id = UUIDs.readUUIDFromBuffer(msg);
         InetSocketAddress addr = Addresses.readAddressFromBuffer(msg);
 
@@ -141,8 +139,6 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     private void handleShuffle(ByteBuffer[] msg, Connection info) {
-        //if not running start shuffle
-        shuffle.start();
         shuffleIn++;
         ArrayList<PeerInfo> receivedView = new ArrayList<>();
 
@@ -164,10 +160,11 @@ public class Overlay implements ConnectionListener, DataListener {
         }
 
         synchronized (this) {
-            // send a view back
-            ArrayList<PeerInfo> toSend = selectToSend();
-            sendPeers(info, toSend);
-
+            if (connections().length >= exch) {
+                // send a view back
+                ArrayList<PeerInfo> toSend = selectToSend();
+                if (toSend.size() > 0) this.sendPeers(info, toSend);
+            }
             selectToKeep(receivedView);
         }
     }
@@ -216,7 +213,7 @@ public class Overlay implements ConnectionListener, DataListener {
         int minimum = (Math.min(h, (newView.size() - fanout)));
         while (minimum > 0) {
             Connection oldestConnection = Collections.max(newView, (o1, o2) -> o1.age - o2.age);
-            if (oldestConnection.age <= receivedView.get(receivedView.size() - 1).age) {
+            if (receivedView.size() > 0 && oldestConnection.age <= receivedView.get(receivedView.size() - 1).age) {
                 receivedView.remove(receivedView.size() - 1);
             } else {
                 newView.remove(oldestConnection);
@@ -235,9 +232,8 @@ public class Overlay implements ConnectionListener, DataListener {
         }
 
         //add new connections
-        for (PeerInfo peer : receivedView) {
-            net.add(peer.listen, peer.age);
-        }
+        receivedView.stream().filter(peer -> peer.listen != null).forEach(peer -> net.add(peer.listen, peer.age));
+        //System.out.println("New connections: "+ receivedView.size());
 
         //trim size
         purgeConnections();
@@ -301,13 +297,14 @@ public class Overlay implements ConnectionListener, DataListener {
             System.out.println(sj.toString());
         }
         //don't shuffle if not enough in the view
-        if (connections().length < 2) return;
+        if (connections().length < exch) return;
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
         //selectTosend
         ArrayList<PeerInfo> toSend = selectToSend();
         //send to Partner
-        this.sendPeers(partner, toSend);
+        if(toSend.size() > 0) this.sendPeers(partner, toSend);
+        List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
         // increase all ages in the view
         peers.values().forEach(connection -> connection.age++);
         cycles++;
