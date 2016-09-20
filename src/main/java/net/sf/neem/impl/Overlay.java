@@ -111,7 +111,7 @@ public class Overlay implements ConnectionListener, DataListener {
         net.setConnectionListener(this);
         //start shuffling right away
         shuffle.start();
-        System.out.println("Started shuffling");
+        //System.out.println("Started shuffling");
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
@@ -159,16 +159,16 @@ public class Overlay implements ConnectionListener, DataListener {
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
-        System.out.println("Received from peer: "+receivedView.size());
+        //System.out.println("Received from peer: "+receivedView.size());
 
         synchronized (this) {
             if (cycles % 10 == 0) {
-                System.out.println("Cycle: " + cycles);
+                //System.out.println("Cycle: " + cycles);
                 StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
                 sj.add(netid.getAddress().getHostAddress());
                 List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
                 hostnames.forEach(sj::add);
-                System.out.println(sj.toString());
+                //System.out.println(sj.toString());
             }
             cycles++;
             if (connections().length > 1 ) {
@@ -209,7 +209,7 @@ public class Overlay implements ConnectionListener, DataListener {
         } else {
             toSend.addAll(tmpView.stream().map(PeerInfo::new).collect(Collectors.toList()));
         }
-        System.out.println("toSend size: "+toSend.size());
+        //System.out.println("toSend size: "+toSend.size());
         return toSend;
     }
 
@@ -308,12 +308,12 @@ public class Overlay implements ConnectionListener, DataListener {
      */
     private synchronized void shuffle() {
         if (cycles % 10 == 0) {
-            System.out.println("Cycle: " + cycles);
+            //System.out.println("Cycle: " + cycles);
             StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
             sj.add(netid.getAddress().getHostAddress());
             List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
             hostnames.forEach(sj::add);
-            System.out.println(sj.toString());
+            //System.out.println(sj.toString());
         }
         //don't shuffle if not enough in the view
         if (connections().length < 2) return;
