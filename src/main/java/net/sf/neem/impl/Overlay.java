@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * number of random walks upon initial join with periodic shuffling.
  */
 public class Overlay implements ConnectionListener, DataListener {
-    private final int h = 2;
+    private final int h = 3;
     private final FSTConfiguration conf;
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
@@ -92,13 +92,13 @@ public class Overlay implements ConnectionListener, DataListener {
         /*
          * Default Fanout
          */
-        this.fanout = 15;
-        this.exch = 7;
-        this.s = 3;
+        this.fanout = 30;
+        this.exch = 15;
+        this.s = 10;
 
         this.myId = myId;
         this.peers = new HashMap<UUID, Connection>();
-        this.shuffle = new Periodic(rand, net, 1000) {
+        this.shuffle = new Periodic(rand, net, 25000) {
             public void run() {
                 shuffle();
             }
@@ -162,14 +162,15 @@ public class Overlay implements ConnectionListener, DataListener {
         //System.out.println("Received from peer: "+receivedView.size());
 
         synchronized (this) {
-            if (cycles % 10 == 0) {
-                //System.out.println("Cycle: " + cycles);
+/*            if (cycles % 10 == 0) {
+                System.out.println("Cycle: " + cycles);
                 StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
                 sj.add(netid.getAddress().getHostAddress());
                 List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
                 hostnames.forEach(sj::add);
-                //System.out.println(sj.toString());
+                System.out.println(sj.toString());
             }
+*/
             cycles++;
             if (connections().length > 1 ) {
                 // send a view back
@@ -307,7 +308,7 @@ public class Overlay implements ConnectionListener, DataListener {
      * Shuffle a part of view to an other peer
      */
     private synchronized void shuffle() {
-        if (cycles % 10 == 0) {
+/*        if (cycles % 10 == 0) {
             //System.out.println("Cycle: " + cycles);
             StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
             sj.add(netid.getAddress().getHostAddress());
@@ -315,13 +316,12 @@ public class Overlay implements ConnectionListener, DataListener {
             hostnames.forEach(sj::add);
             //System.out.println(sj.toString());
         }
+*/
         //don't shuffle if not enough in the view
         if (connections().length < 2) return;
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
-        //selectTosend
         ArrayList<PeerInfo> toSend = selectToSend(partner);
-        //send to Partner
         if(toSend.size() > 0) this.sendPeers(partner, toSend);
         //List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
         // increase all ages in the view
