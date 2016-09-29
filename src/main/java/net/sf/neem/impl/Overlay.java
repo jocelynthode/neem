@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * number of random walks upon initial join with periodic shuffling.
  */
 public class Overlay implements ConnectionListener, DataListener {
-    private final int h = 3;
+    private final int h = 2;
     private final FSTConfiguration conf;
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
@@ -93,7 +93,7 @@ public class Overlay implements ConnectionListener, DataListener {
          * Default Fanout
          */
         this.fanout = 30;
-        this.exch = 15;
+        this.exch = 14;
         this.s = 10;
 
         this.myId = myId;
@@ -115,8 +115,6 @@ public class Overlay implements ConnectionListener, DataListener {
     }
 
     public void receive(ByteBuffer[] msg, Connection info, short port) {
-        info.age = 0;
-
         if (port == this.idport)
             handleId(msg, info);
         else if (port == this.shuffleport)
@@ -139,15 +137,14 @@ public class Overlay implements ConnectionListener, DataListener {
         }
     }
 
-    private void handleShuffle(ByteBuffer[] msg, Connection info) {
+    private synchronized void handleShuffle(ByteBuffer[] msg, Connection info) {
         shuffleIn++;
         ArrayList<PeerInfo> receivedView = new ArrayList<>();
 
-        //add sender here
-        receivedView.add(new PeerInfo(info));
         int len = readSize(msg);
         byte[] content = new byte[len];
         Buffers.sliceCompact(msg,len).get(content);
+
 
         ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
 
@@ -162,16 +159,6 @@ public class Overlay implements ConnectionListener, DataListener {
         //System.out.println("Received from peer: "+receivedView.size());
 
         synchronized (this) {
-/*            if (cycles % 10 == 0) {
-                System.out.println("Cycle: " + cycles);
-                StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
-                sj.add(netid.getAddress().getHostAddress());
-                List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
-                hostnames.forEach(sj::add);
-                System.out.println(sj.toString());
-            }
-*/
-            cycles++;
             if (connections().length > 1 ) {
                 // send a view back
                 ArrayList<PeerInfo> toSend = selectToSend(info);
@@ -188,6 +175,7 @@ public class Overlay implements ConnectionListener, DataListener {
 
     private ArrayList<PeerInfo> selectToSend(Connection partner) {
         ArrayList<PeerInfo> toSend = new ArrayList<>();
+        toSend.add(new PeerInfo(netid,myId,0));
         ArrayList<Connection> tmpView = new ArrayList<>(peers.values());
         tmpView.remove(partner);
 
@@ -214,7 +202,7 @@ public class Overlay implements ConnectionListener, DataListener {
         return toSend;
     }
 
-    private synchronized void selectToKeep(ArrayList<PeerInfo> receivedView) {
+    private synchronized void selectToKeep(List<PeerInfo> receivedView) {
         //remove duplicates from view
         ArrayList<PeerInfo> toRemove = new ArrayList<>();
         for (PeerInfo peer : receivedView) {
@@ -223,36 +211,35 @@ public class Overlay implements ConnectionListener, DataListener {
         }
         receivedView.removeAll(toRemove);
         //merge view and received in an arrayList
-        ArrayList<Connection> newView = new ArrayList<>(peers.values());
-        receivedView.sort((o1, o2) -> o1.age - o2.age);
+        List<PeerInfo> tmp = peers.values().parallelStream().map(peer -> new PeerInfo(peer)).collect(Collectors.toList());
+        tmp.addAll(receivedView);
+        receivedView = tmp;
         //remove min(H, #view-c) oldest items
-        int minimum = (Math.min(h, ((newView.size() + receivedView.size()) - fanout)));
-        while (minimum > 0) {
-            Connection oldestConnection = Collections.max(newView, (o1, o2) -> o1.age - o2.age);
-            if (receivedView.size() > 0 && oldestConnection.age <= receivedView.get(receivedView.size() - 1).age) {
-                receivedView.remove(receivedView.size() - 1);
-            } else {
-                newView.remove(oldestConnection);
-                purgeConnection(oldestConnection);
+        int minimum = Math.min(h, (receivedView.size() - fanout));
+        while (minimum > 0 && receivedView.size() > 0) {
+            PeerInfo oldestConnection = Collections.max(receivedView, (o1, o2) -> o1.age - o2.age );
+            receivedView.remove(oldestConnection);
+            if (peers.get(oldestConnection.id) != null) {
+                purgeConnection(peers.get(oldestConnection.id));
             }
-
             minimum--;
         }
 
         //remove the min(S, #view -c) head items from view
-        minimum = Math.min(s, ((newView.size() + receivedView.size()) - fanout));
-        while (minimum > 0) {
-            if (newView.size() > 0) {
-                Connection removed = newView.remove(0);
-                purgeConnection(removed);
-            } else {
-                receivedView.remove(0);
+        minimum = Math.min(s, (receivedView.size() - fanout));
+        while (minimum > 0 && receivedView.size() > 0) {
+            PeerInfo head = receivedView.get(0);
+            receivedView.remove(0);
+            if (peers.get(head.id) != null) {
+                purgeConnection(peers.get(head.id));
             }
             minimum--;
         }
 
-        //add new connections
-        receivedView.stream().filter(peer -> peer.listen != null).forEach(peer -> net.add(peer.listen, peer.age));
+        //add new connections only if not already one
+        receivedView.parallelStream().filter(peer -> peers.get(peer.id) == null && peer.listen != null).forEach(
+                peer -> net.add(peer.listen, peer.age)
+        );
         //System.out.println("New connections: "+ receivedView.size());
         //trim size
         purgeConnections();
@@ -308,17 +295,25 @@ public class Overlay implements ConnectionListener, DataListener {
      * Shuffle a part of view to an other peer
      */
     private synchronized void shuffle() {
-/*        if (cycles % 10 == 0) {
-            //System.out.println("Cycle: " + cycles);
+        //don't shuffle if not enough in the view
+
+
+        if (cycles % 2 == 0) {
+            System.out.println("Cycle: " + cycles);
             StringJoiner sj = new StringJoiner(" ", "PSS View: ", "");
-            sj.add(netid.getAddress().getHostAddress());
             List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
             hostnames.forEach(sj::add);
-            //System.out.println(sj.toString());
+            System.out.println(sj.toString());
+            System.out.println("Connections length : "+connections().length);
         }
-*/
-        //don't shuffle if not enough in the view
-        if (connections().length < 2) return;
+        cycles++;
+
+        if (connections().length < 2) {
+            System.out.println("Not enough connections to shuffle");
+            return;
+        }
+        //System.out.println("Shuffling started");
+
         //selectPartner from view
         Connection partner = connections()[rand.nextInt(connections().length)];
         ArrayList<PeerInfo> toSend = selectToSend(partner);
@@ -326,7 +321,6 @@ public class Overlay implements ConnectionListener, DataListener {
         //List<String> hostnames = Arrays.stream(connections()).map(connection -> connection.listen.getAddress().getHostAddress()).collect(Collectors.toList());
         // increase all ages in the view
         peers.values().forEach(connection -> connection.age++);
-        cycles++;
     }
 
     /**
