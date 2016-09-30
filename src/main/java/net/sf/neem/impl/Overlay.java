@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * number of random walks upon initial join with periodic shuffling.
  */
 public class Overlay implements ConnectionListener, DataListener {
-    private final int h = 2;
+    private final int h = 3;
     private final FSTConfiguration conf;
     public int joins, purged, shuffleIn, shuffleOut;
     private Transport net;
@@ -139,15 +139,17 @@ public class Overlay implements ConnectionListener, DataListener {
 
     private synchronized void handleShuffle(ByteBuffer[] msg, Connection info) {
         shuffleIn++;
-        ArrayList<PeerInfo> receivedView = new ArrayList<>();
+        if (connections().length > 1 ) {
+            // send a view back
+            ArrayList<PeerInfo> toSend = selectToSend(info);
+            if (toSend.size() > 0) this.sendPeers(info, toSend);
+        }
 
+        ArrayList<PeerInfo> receivedView = new ArrayList<>();
         int len = readSize(msg);
         byte[] content = new byte[len];
         Buffers.sliceCompact(msg,len).get(content);
-
-
         ByteArrayInputStream byteIn = new ByteArrayInputStream(content);
-
         try {
             FSTObjectInput in = new FSTObjectInput(byteIn);
             ArrayList<PeerInfo> unserializedList = (ArrayList<PeerInfo>) in.readObject();
@@ -156,16 +158,7 @@ public class Overlay implements ConnectionListener, DataListener {
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
-        //System.out.println("Received from peer: "+receivedView.size());
-
-        synchronized (this) {
-            if (connections().length > 1 ) {
-                // send a view back
-                ArrayList<PeerInfo> toSend = selectToSend(info);
-                if (toSend.size() > 0) this.sendPeers(info, toSend);
-            }
-            selectToKeep(receivedView);
-        }
+        selectToKeep(receivedView);
     }
 
     private int readSize(ByteBuffer[] msg) {
@@ -295,8 +288,6 @@ public class Overlay implements ConnectionListener, DataListener {
      * Shuffle a part of view to an other peer
      */
     private synchronized void shuffle() {
-        //don't shuffle if not enough in the view
-
 
         if (cycles % 2 == 0) {
             System.out.println("Cycle: " + cycles);
@@ -308,6 +299,7 @@ public class Overlay implements ConnectionListener, DataListener {
         }
         cycles++;
 
+        //don't shuffle if not enough in the view
         if (connections().length < 2) {
             System.out.println("Not enough connections to shuffle");
             return;
